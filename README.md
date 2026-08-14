@@ -207,13 +207,8 @@ For reporting and filtering purposes, events are also grouped into the following
 ## Author
 
 **Ammar Bakhtiar Bin Aminuddin**
-Student ID: 2023119167
+Bachelor of Information Systems (Hons.) — 3u1i Mode
 Universiti Teknologi MARA (UiTM)
-
-Developed during an industrial training placement at **EDAG Holding Sdn. Bhd.**
-
-- **Supervisor:** Dr. Nur Suhailayani Binti Suhaimi
-- **Industry Coach:** Muhammad Iskandar Bin Ab Rakib
 
 ---
 
