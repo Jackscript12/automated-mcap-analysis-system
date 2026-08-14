@@ -167,14 +167,15 @@ Automated-MCAP-Analysis-System/
 
 ## Supported Event Types
 
-The system focuses on **Prio3** (Priority 3) takeover events — driver-initiated takeover actions flagged for review, marking a genuine, deliberate takeover by the driver during a HAF_TAF_TOR (the final escalation phase before full driver takeover):
+The system handles **Priority 3 (Prio3) driver takeover events** only:
 
-| ODD Code | Name | Description |
-|---|---|---|
-| `354` | `DriverTriesTakeoverByStrongBraking` | Driver takes over by braking strongly |
-| `355` | `DriverTriesTakeoverByStrongSteering` | Driver takes over by steering strongly |
+| Event Name | Description |
+|-----------|-------------|
+| DriverTriesTakeoverByStrongBraking | Driver applied strong brake input to take over control |
+| DriverTriesTakeoverByStrongSteering | Driver applied strong steering input to take over control |
+| Driver takeover variants (x4) | Additional driver-initiated takeover event types |
 
-These two codes mark the true start of the **Event Triggered** phase within the timeline — the point where the driver has actually begun taking back control. Any ODD activity recorded before the first Prio3 code within the HAF_TAF_TOR window is treated as still belonging to the Pre-Event phase, before the takeover began. Events are further categorized at a high level as **Crash Event**, **Strong Braking**, or **Normal Event** depending on the specific ODD code that triggered them.
+> **Note:** Minimal Risk Maneuver (MRM) events are detected but excluded from automated analysis. They are reserved for senior technician manual review.
 
 ## Braking Classification
 
