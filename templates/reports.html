@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports — MCAP Analysis System</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        :root { --border: #dde2ea; --text-secondary: #64748b; }
+    </style>
+</head>
+<body class="app-page">
+
+<div class="app-layout">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="{{ url_for('static', filename='images/logo.png') }}"
+                 alt="EDAG Logo"
+                 style="height:32px; width:auto; object-fit:contain; filter:brightness(0) invert(1);">
+            <div>
+                <div class="sidebar-brand-name">MCAP Analysis</div>
+                <div class="sidebar-brand-sub">EDAG Holding</div>
+            </div>
+        </div>
+
+        <div class="sidebar-section-label">Main</div>
+        <nav class="sidebar-nav">
+            <a href="/" class="{{ 'active' if request.path == '/' else '' }}"><i class="ti ti-home"></i> Home</a>
+            <a href="/upload" class="{{ 'active' if request.path == '/upload' else '' }}"><i class="ti ti-upload"></i> Upload MCAP</a>
+        </nav>
+
+        <div class="sidebar-section-label">Analysis</div>
+        <nav class="sidebar-nav">
+            <a href="/analysis" class="{{ 'active' if '/analysis' in request.path else '' }}"><i class="ti ti-list-details"></i> Event Analysis</a>
+            <a href="/reports" class="{{ 'active' if request.path == '/reports' else '' }}"><i class="ti ti-file-report"></i> Reports</a>
+            <a href="/audit-logs" class="{{ 'active' if request.path == '/audit-logs' else '' }}"><i class="ti ti-history"></i> Audit Log</a>
+        </nav>
+
+        <div style="margin-top:auto; padding:12px 16px; border-top:0.5px solid rgba(255,255,255,0.08); text-align:center;">
+            <button onclick="openHelpModal()"
+                    style="background:rgba(255,255,255,0.08); border:none; color:rgba(255,255,255,0.6);
+                           width:28px; height:28px; border-radius:50%; cursor:pointer;
+                           margin:0 auto 6px; display:block; font-size:13px;" title="Help">?</button>
+            <div style="font-size:10px; color:rgba(255,255,255,0.3);">v1.0</div>
+        </div>
+
+    </aside>
+
+    <!-- ── App Main ── -->
+    <div class="app-main">
+
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="topbar-breadcrumb">Home / <span>Reports</span></div>
+            <div class="topbar-right">
+                <a href="/upload" class="btn btn-primary btn-sm">
+                    <i class="ti ti-upload"></i> Upload MCAP
+                </a>
+            </div>
+        </div>
+
+        <!-- Page Content -->
+        <div class="page-content">
+
+            <!-- Reports Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Generated Reports</h3>
+                    <span style="font-size:11px; color:#64748b;">All PDF reports produced from completed event analyses</span>
+                </div>
+
+                <div style="padding:10px 16px 0;">
+                    <button onclick="window.history.back()" class="btn btn-ghost btn-sm"
+                            style="display:flex; align-items:center; gap:6px; width:fit-content;">
+                        <i class="ti ti-arrow-left" style="font-size:14px;" aria-hidden="true"></i>
+                        Back
+                    </button>
+                </div>
+
+                <!-- Tab nav -->
+                <div class="tab-nav">
+                    <button class="tab-btn active" onclick="filterReports('all', this)">All</button>
+                    <button class="tab-btn" onclick="filterReports('Below -4', this)">Below -4</button>
+                    <button class="tab-btn" onclick="filterReports('-4 to -7', this)">-4 to -7</button>
+                    <button class="tab-btn" onclick="filterReports('-7 to -10', this)">-7 to -10</button>
+                </div>
+
+                <!-- Search / Filter row -->
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:10px 16px; border-bottom:0.5px solid #f1f5f9;">
+                    <input type="text" id="search-input" class="form-input"
+                           placeholder="Search filename, technician..."
+                           style="flex:1; min-width:180px; font-size:13px;"
+                           oninput="applyFilters()">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label for="date-from" style="font-size:13px; color:var(--text-secondary); white-space:nowrap;">From</label>
+                        <input type="date" id="date-from" class="form-input"
+                               style="width:140px; font-size:13px;"
+                               onchange="applyFilters()">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label for="date-to" style="font-size:13px; color:var(--text-secondary); white-space:nowrap;">To</label>
+                        <input type="date" id="date-to" class="form-input"
+                               style="width:140px; font-size:13px;"
+                               onchange="applyFilters()">
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="clearFilters()">Clear</button>
+                </div>
+
+                {% if reports %}
+                <div class="table-wrapper">
+                    <table class="app-table">
+                        <thead>
+                            <tr>
+                                <th>Draft ID</th>
+                                <th onclick="sortTable(1)" style="cursor:pointer;">MCAP Filename <i class="ti ti-arrows-sort" style="font-size:11px;" aria-hidden="true"></i></th>
+                                <th>Created By</th>
+                                <th onclick="sortTable(3)" style="cursor:pointer; min-width:140px;">Event Classification <i class="ti ti-arrows-sort" style="font-size:11px;" aria-hidden="true"></i></th>
+                                <th onclick="sortTable(4)" style="cursor:pointer;">Generated At <i class="ti ti-arrows-sort" style="font-size:11px;" aria-hidden="true"></i></th>
+                                <th onclick="sortTable(5)" style="cursor:pointer;">Status <i class="ti ti-arrows-sort" style="font-size:11px;" aria-hidden="true"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reports-tbody">
+                            {% for r in reports %}
+                            <tr data-category="{{ r.event_classification or '' }}">
+                                <td><span class="value-highlight">#{{ r.draft_id }}</span></td>
+                                <td>{{ r.original_filename }}</td>
+                                <td>{{ r.created_by_name or 'N/A' }}</td>
+                                <td>
+                                    {% if r.event_classification %}
+                                    <span class="badge badge-{{ r.event_classification | lower | replace(' ', '-') | replace('below', 'below') }}">
+                                        {{ r.event_classification }}
+                                    </span>
+                                    {% else %}
+                                    <span style="color:#94a3b8;">—</span>
+                                    {% endif %}
+                                </td>
+                                <td data-date="{{ r.generated_at_date }}">
+                                    {{ r.generated_at if r.generated_at != 'N/A' else '—' }}
+                                </td>
+                                <td>
+                                    <span class="status-pill {% if r.status == 'Completed' %}success{% elif r.status == 'In Progress' %}review{% else %}neutral{% endif %}">
+                                        {{ r.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                                    <a href="/analysis/{{ r.draft_id }}"
+                                       class="btn btn-sm btn-outline">View Analysis</a>
+                                    {% if r.report_id %}
+                                    <a href="/reports/{{ r.report_id }}/download"
+                                       class="btn btn-sm btn-outline">
+                                        <i class="ti ti-download"></i> Download PDF
+                                    </a>
+                                    {% endif %}
+                                    {% if r.status in ['Draft', 'In Progress'] %}
+                                    <button type="button"
+                                            onclick="confirmDeleteFromReports('{{ r.draft_id }}')"
+                                            class="btn btn-sm btn-danger">
+                                        <i class="ti ti-trash"></i> Delete
+                                    </button>
+                                    {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div style="text-align:center; padding:48px 20px; color:#94a3b8;">
+                    <i class="ti ti-file-off" style="font-size:36px; color:#cbd5e1; margin-bottom:10px; display:block;" aria-hidden="true"></i>
+                    <p style="font-size:14px; font-weight:500; color:#64748b; margin-bottom:4px;">No reports generated yet</p>
+                    <p style="font-size:12px;">Complete an analysis and generate a report to see it here.</p>
+                </div>
+                {% endif %}
+            </div>
+
+
+        </div><!-- /page-content -->
+    </div><!-- /app-main -->
+</div><!-- /app-layout -->
+
+<script>
+let activeCategory = 'all';
+
+function filterReports(category, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeCategory = category;
+    applyFilters();
+}
+
+function applyFilters() {
+    const query    = (document.getElementById('search-input').value || '').toLowerCase();
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo   = document.getElementById('date-to').value;
+    const rows     = document.querySelectorAll('#reports-tbody tr[data-category]');
+    let   visible  = 0;
+
+    rows.forEach(row => {
+        const cat     = row.dataset.category || '';
+        const dateVal = row.querySelector('td[data-date]')?.dataset.date || '';
+        const hasDate = !!dateVal;
+        const text    = row.textContent.toLowerCase();
+
+        const catOk  = activeCategory === 'all' || cat === activeCategory;
+        const textOk = !query    || text.includes(query);
+        // A row with no generated date (Draft/In Progress reports) can't be
+        // confirmed inside a date range, so it's excluded by EITHER bound —
+        // previously it only failed "from" and incorrectly passed "to".
+        const fromOk = !dateFrom || (hasDate && dateVal >= dateFrom);
+        const toOk   = !dateTo   || (hasDate && dateVal <= dateTo);
+
+        const show = catOk && textOk && fromOk && toOk;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    let noResults = document.getElementById('no-results-row');
+    if (visible === 0 && rows.length > 0) {
+        if (!noResults) {
+            noResults = document.createElement('tr');
+            noResults.id = 'no-results-row';
+            noResults.innerHTML = '<td colspan="7" class="empty-state"><p>No reports match the current filters.</p></td>';
+            document.getElementById('reports-tbody').appendChild(noResults);
+        }
+        noResults.style.display = '';
+    } else if (noResults) {
+        noResults.style.display = 'none';
+    }
+}
+
+function clearFilters() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('date-from').value    = '';
+    document.getElementById('date-to').value      = '';
+    const allBtn = document.querySelector('.tab-btn');
+    if (allBtn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        activeCategory = 'all';
+    }
+    applyFilters();
+}
+
+function confirmDeleteFromReports(draftId) {
+    if (!confirm('Delete this analysis? This action cannot be undone. The MCAP file and all associated data will also be removed.')) {
+        return;
+    }
+    fetch(`/analysis/${draftId}/delete`, { method: 'POST' })
+        .then(response => {
+            if (response.ok || response.redirected) {
+                window.location.reload();
+            } else {
+                showToast('Failed to delete analysis. Please try again.', 'error');
+            }
+        })
+        .catch(() => showToast('Network error. Please try again.', 'error'));
+}
+
+let sortDirection = {};
+function sortTable(colIndex) {
+    const tbody = document.querySelector('#reports-tbody');
+    const rows  = Array.from(tbody.querySelectorAll('tr[data-category]'));
+    sortDirection[colIndex] = !sortDirection[colIndex];
+    const asc = sortDirection[colIndex];
+    rows.sort((a, b) => {
+        const aVal = (a.children[colIndex] || {}).textContent.trim();
+        const bVal = (b.children[colIndex] || {}).textContent.trim();
+        return asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    });
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+function showToast(message, type = 'info', duration = 4000) {
+    const colors = {
+        info:    { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af' },
+        success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534' },
+        error:   { bg: '#fef2f2', border: '#fecaca', text: '#991b1b' },
+        warning: { bg: '#fff7ed', border: '#fde68a', text: '#92400e' },
+    };
+    const c = colors[type] || colors.info;
+    const toast = document.createElement('div');
+    toast.style.cssText = `background:${c.bg}; border:0.5px solid ${c.border}; color:${c.text}; padding:10px 14px; border-radius:6px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,0.08); max-width:340px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; animation:slideIn 0.2s ease-out;`;
+    toast.innerHTML = `<span>${message}</span><span style="cursor:pointer;opacity:0.6;flex-shrink:0;" onclick="this.parentElement.remove()">✕</span>`;
+    document.getElementById('toast-container').appendChild(toast);
+    setTimeout(() => toast.remove(), duration);
+}
+
+function openHelpModal()  { document.getElementById('help-modal').style.display = 'flex'; }
+function closeHelpModal() { document.getElementById('help-modal').style.display = 'none'; }
+</script>
+
+<!-- ── Toast Container ── -->
+<div id="toast-container" style="position:fixed; top:16px; right:16px; z-index:10001; display:flex; flex-direction:column; gap:8px;"></div>
+
+<!-- ── Help Modal ── -->
+<div id="help-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+     background:rgba(0,0,0,0.4); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:8px; padding:24px; width:440px; max-width:90%;
+                box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+        <h3 style="font-size:15px; font-weight:600; color:#1e293b; margin-bottom:14px;">How to use this system</h3>
+        <ol style="font-size:13px; color:#475569; line-height:1.8; padding-left:18px;">
+            <li>Upload an MCAP file and select your name as technician</li>
+            <li>Review the automated extraction results on the Analysis Page</li>
+            <li>Save the Analysis Summary, then complete the verification form</li>
+            <li>Generate the PDF report once the analysis is marked Completed</li>
+            <li>Find and download all reports from the Reports Page</li>
+        </ol>
+        <button onclick="closeHelpModal()" class="btn btn-primary btn-sm" style="margin-top:14px;">Got it</button>
+    </div>
+</div>
+
+</body>
+</html>

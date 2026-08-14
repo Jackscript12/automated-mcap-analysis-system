@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload — MCAP Analysis System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<header class="navbar">
+    <div class="logo">MCAP Analysis System</div>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/upload" class="active">Upload</a>
+        <a href="/reports">Reports</a>
+    </nav>
+</header>
+
+<main class="container">
+
+    <section class="page-header">
+        <h1>Upload MCAP File</h1>
+        <p>Upload your MCAP dataset file to begin automated validation and extraction.</p>
+    </section>
+
+    {% if message %}
+    <div class="alert alert-{{ message_type or 'error' }}">
+        {{ message }}
+    </div>
+    {% endif %}
+
+    <section class="upload-card">
+        <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
+
+            <!-- Technician Dropdown -->
+            <div class="form-group">
+                <label for="created_by_name">Uploaded By *</label>
+                <select name="created_by_name" id="created_by_name" class="form-select" required>
+                    <option value="">-- Select Technician --</option>
+                    {% for tech in technicians %}
+                    <option value="{{ tech }}">{{ tech }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- File Drop Zone -->
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <p>Drag and drop your <strong>.mcap</strong> file here</p>
+                <p class="text-muted">or</p>
+                <label for="mcapFile" class="btn btn-outline">Browse File</label>
+                <input type="file" name="mcapFile" id="mcapFile"
+                       accept=".mcap" style="display:none"
+                       onchange="showFileName(this)">
+                <p id="fileNameDisplay" class="file-name-display"></p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-full">
+                    Upload & Process
+                </button>
+            </div>
+
+        </form>
+
+        <!-- Processing steps info -->
+        <div class="process-steps">
+            <h3>What happens after upload?</h3>
+            <ol>
+                <li>File is validated for correct format and required topics</li>
+                <li>Event data is automatically extracted</li>
+                <li>Report draft is created and ready for review</li>
+            </ol>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    function showFileName(input) {
+        const display = document.getElementById('fileNameDisplay');
+        if (input.files.length > 0) {
+            display.textContent = '✓ ' + input.files[0].name;
+            display.style.color = '#2d6a4f';
+        }
+    }
+
+    // Drag and drop
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('mcapFile');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            showFileName(fileInput);
+        }
+    });
+</script>
+
+</body>
+</html>

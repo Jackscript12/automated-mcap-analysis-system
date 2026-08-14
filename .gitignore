@@ -1,0 +1,12 @@
+uploads/
+reports/
+screenshots/
+mcap_analysis.db
+analysis.db
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+*.mcap
+*.db

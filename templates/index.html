@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCAP Analysis System — EDAG Holding</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="portal-header">
+    <div class="portal-header-left">
+        <img src="{{ url_for('static', filename='images/logo.png') }}"
+             alt="EDAG Logo"
+             style="height:48px; width:auto; object-fit:contain; filter:brightness(0) invert(1);">
+        <div>
+            <div class="portal-title">Automated MCAP Analysis System</div>
+            <div class="portal-subtitle">EDAG Holding Sdn. Bhd. | ADAS Level 3 Testing Division</div>
+        </div>
+    </div>
+</header>
+
+<!-- ── Nav Bar ── -->
+<nav class="portal-nav">
+    <a href="/" class="active">Home</a>
+    <a href="/upload">Upload MCAP</a>
+    <a href="/analysis">Event Analysis</a>
+    <a href="/reports">Reports</a>
+</nav>
+
+<!-- ── Hero ── -->
+<div class="portal-hero">
+    <div class="portal-hero-text">
+        <h2>Automated MCAP Analysis and Report Visualization System</h2>
+        <p>Replacing the manual Foxglove Studio workflow with an automated pipeline for MCAP file processing, event extraction, technician review, and standardized PDF report generation for ADAS Level 3 vehicle testing.</p>
+        <div class="hero-buttons">
+            <a href="/upload" class="hero-btn-primary">
+                <i class="ti ti-upload"></i> Upload MCAP
+            </a>
+            <a href="/reports" class="hero-btn-outline">View Reports</a>
+        </div>
+    </div>
+</div>
+
+<!-- ── Stats Bar ── -->
+<div class="portal-stats-bar">
+    <div class="portal-stat">
+        <div class="portal-stat-number">{{ uploaded_files }}</div>
+        <div class="portal-stat-label">Uploaded Files</div>
+    </div>
+    <div class="portal-stat">
+        <div class="portal-stat-number">{{ analyzed_events }}</div>
+        <div class="portal-stat-label">Analyzed Events</div>
+    </div>
+    <div class="portal-stat">
+        <div class="portal-stat-number">{{ generated_reports }}</div>
+        <div class="portal-stat-label">Generated Reports</div>
+    </div>
+    <div class="portal-stat">
+        <div class="portal-stat-number">{{ active_technicians }}</div>
+        <div class="portal-stat-label">Active Technicians</div>
+    </div>
+</div>
+
+<!-- ── Section: Our Services ── -->
+<section class="portal-section">
+    <div class="section-header">
+        <h3>Our Services</h3>
+        <p>Complete workflow for MCAP file processing and event reporting</p>
+        <div class="section-underline"></div>
+    </div>
+    <div class="services-grid">
+        <div class="service-card">
+            <div class="service-icon-box"><i class="ti ti-upload"></i></div>
+            <h4>Upload MCAP Files</h4>
+            <p>Upload MCAP files from ADAS Level 3 vehicle testing sessions</p>
+        </div>
+        <div class="service-card">
+            <div class="service-icon-box"><i class="ti ti-shield-check"></i></div>
+            <h4>Validate MCAP Files</h4>
+            <p>Automatic validation of MCAP file structure and required topics</p>
+        </div>
+        <div class="service-card">
+            <div class="service-icon-box"><i class="ti ti-database-export"></i></div>
+            <h4>Extract Event Data</h4>
+            <p>Automated extraction of ODD events, braking data and HMI states</p>
+        </div>
+        <div class="service-card">
+            <div class="service-icon-box"><i class="ti ti-chart-line"></i></div>
+            <h4>View Event Analysis</h4>
+            <p>Review 4-phase event timeline, velocity range and SCG data</p>
+        </div>
+        <div class="service-card">
+            <div class="service-icon-box"><i class="ti ti-forms"></i></div>
+            <h4>Complete Analysis Form</h4>
+            <p>Fill event classification, summary and upload Foxglove screenshots</p>
+        </div>
+        <div class="service-card">
+            <div class="service-icon-box"><i class="ti ti-file-text"></i></div>
+            <h4>Generate PDF Report</h4>
+            <p>Generate standardized PDF reports following EDAG report format</p>
+        </div>
+    </div>
+</section>
+
+<!-- ── Section: Recent Analysis Activity ── -->
+<section class="portal-section alt">
+    <div class="section-header">
+        <h3>Latest Analysis Activity</h3>
+        <p>Most recent MCAP analyses submitted by the testing team</p>
+        <div class="section-underline"></div>
+    </div>
+    <div class="announcements-grid">
+        {% for item in recent_analyses[:3] %}
+        <a href="{{ url_for('view_analysis', draft_id=item.draft_id) }}"
+           style="text-decoration:none; color:inherit; display:block;">
+        <div class="announcement-card" style="cursor:pointer;">
+            <div class="announcement-image">
+                <i class="ti ti-car-crash"></i>
+            </div>
+            <div class="announcement-body">
+                <span class="announcement-tag">{{ item.status }}</span>
+                <div class="announcement-title">{{ item.original_filename }}</div>
+                <div class="announcement-meta">{{ item.created_at }} &mdash; {{ item.created_by_name or 'Unknown' }}</div>
+            </div>
+        </div>
+        </a>
+        {% else %}
+        <div style="text-align:center; padding:40px 20px; color:#94a3b8; grid-column:1/-1;">
+            <i class="ti ti-clipboard-off" style="font-size:32px; color:#cbd5e1; margin-bottom:8px; display:block;" aria-hidden="true"></i>
+            <p style="font-size:13px;">No analysis activity yet. Upload an MCAP file to get started.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer class="portal-footer">
+    <div class="footer-grid">
+        <!-- Brand -->
+        <div class="footer-col">
+            <div class="footer-logo-row">
+                <img src="{{ url_for('static', filename='images/logo.png') }}"
+                     alt="EDAG Logo"
+                     style="height:34px; width:auto; object-fit:contain; filter:brightness(0) invert(1);">
+                <span class="footer-brand-name">EDAG Holding Sdn. Bhd.</span>
+            </div>
+            <p class="footer-brand-desc">
+                Engineering partner for ADAS Level 3 vehicle testing in Malaysia.
+                Subsidiary of EDAG Group — one of the world's largest independent
+                engineering service providers for the automotive industry.
+            </p>
+            <div class="footer-contact">
+                <div class="footer-contact-item"><i class="ti ti-map-pin"></i> Selangor, Malaysia</div>
+                <div class="footer-contact-item"><i class="ti ti-mail"></i> info@edag.com</div>
+                <div class="footer-contact-item"><i class="ti ti-world"></i> www.edag.com</div>
+                <div class="footer-contact-item"><i class="ti ti-phone"></i> +60 (3) XXXX XXXX</div>
+            </div>
+        </div>
+
+        <!-- System Modules -->
+        <div class="footer-col">
+            <h5>System Modules</h5>
+            <a href="/upload">Upload MCAP</a>
+            <a href="/upload">Validate Files</a>
+            <a href="/upload">Extract Event Data</a>
+            <a href="/analysis">Event Analysis</a>
+            <a href="/reports">Generate Reports</a>
+            <a href="/reports">Download Reports</a>
+        </div>
+
+        <!-- Resources -->
+        <div class="footer-col">
+            <h5>Resources</h5>
+            <a href="#">SAE J3016 Standard</a>
+            <a href="#">ISO 34503 ODD</a>
+            <a href="#">BMW Level 3 Safety Report</a>
+            <a href="#">LDU Priority Table</a>
+            <a href="#">User Guide</a>
+        </div>
+
+    </div>
+
+    <div class="footer-bottom">
+        <span>© 2026 EDAG Holding Sdn. Bhd. All rights reserved.</span>
+        <span>Developed by Ammar Bakhtiar Bin Aminuddin — UiTM 3u1i FYP 2026</span>
+    </div>
+</footer>
+
+<div id="toast-container" style="position:fixed; top:16px; right:16px; z-index:10001; display:flex; flex-direction:column; gap:8px;"></div>
+<script>
+function showToast(message, type = 'info', duration = 4000) {
+    const colors = {
+        info:    { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af' },
+        success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534' },
+        error:   { bg: '#fef2f2', border: '#fecaca', text: '#991b1b' },
+        warning: { bg: '#fff7ed', border: '#fde68a', text: '#92400e' },
+    };
+    const c = colors[type] || colors.info;
+    const toast = document.createElement('div');
+    toast.style.cssText = `background:${c.bg}; border:0.5px solid ${c.border}; color:${c.text}; padding:10px 14px; border-radius:6px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,0.08); max-width:340px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; animation:slideIn 0.2s ease-out;`;
+    toast.innerHTML = `<span>${message}</span><span style="cursor:pointer;opacity:0.6;flex-shrink:0;" onclick="this.parentElement.remove()">✕</span>`;
+    document.getElementById('toast-container').appendChild(toast);
+    setTimeout(() => toast.remove(), duration);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Analysis — MCAP Analysis System</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        html { scroll-behavior: smooth; }
+        :root { --border: #dde2ea; }
+
+        #reextract-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        #reextract-overlay .rx-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 26px 24px;
+            max-width: 460px;
+            width: 92%;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+        }
+        #reextract-overlay .rx-header {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 4px;
+        }
+        #reextract-overlay .rx-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1b3a6b;
+        }
+        #reextract-overlay .rx-sub {
+            font-size: 12.5px;
+            color: #64748b;
+            margin-bottom: 18px;
+        }
+        #reextract-overlay .rx-progress-track {
+            height: 6px;
+            background: #eef1f5;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        #reextract-overlay .rx-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #1b3a6b;
+            transition: width 0.4s ease;
+        }
+        .rx-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 0.5px solid #f1f5f9;
+        }
+        .rx-step:last-child { border-bottom: none; }
+        .rx-step-icon {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .rx-step-icon.rx-pending {
+            border: 2px solid var(--border);
+            opacity: 0.4;
+        }
+        .rx-step-label.rx-pending { opacity: 0.4; }
+        .rx-step-icon.rx-active {
+            border: 2px solid rgba(27,58,107,0.2);
+            border-top-color: #1b3a6b;
+            animation: rx-spin 0.8s linear infinite;
+        }
+        .rx-step-icon.rx-done {
+            background: #1b3a6b;
+            position: relative;
+        }
+        .rx-step-icon.rx-done::after {
+            content: "";
+            position: absolute;
+            left: 5px;
+            top: 2px;
+            width: 4px;
+            height: 8px;
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        @keyframes rx-spin { to { transform: rotate(360deg); } }
+        .rx-step-label {
+            flex: 1;
+            font-size: 13px;
+            color: #64748b;
+            transition: color 0.2s ease, font-weight 0.2s ease;
+        }
+        .rx-step-label.rx-label-active,
+        .rx-step-label.rx-label-done {
+            color: #1b3a6b;
+        }
+        .rx-step-label.rx-label-active { font-weight: 600; }
+        .rx-step-time {
+            font-size: 11px;
+            color: #94a3b8;
+            min-width: 34px;
+            text-align: right;
+        }
+
+        @keyframes rx-pulse-flash {
+            0%   { outline: 2px solid #facc15; outline-offset: 3px; background: rgba(250, 204, 21, 0.18); }
+            100% { outline: 2px solid rgba(250, 204, 21, 0); outline-offset: 3px; background: transparent; }
+        }
+        .rx-pulse-highlight {
+            animation: rx-pulse-flash 0.4s ease-out;
+            border-radius: 3px;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: #fff;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+        .modal-body {
+            font-size: 14px;
+            color: #475569;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body class="app-page">
+
+<div class="app-layout">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="{{ url_for('static', filename='images/logo.png') }}"
+                 alt="EDAG Logo"
+                 style="height:32px; width:auto; object-fit:contain; filter:brightness(0) invert(1);">
+            <div>
+                <div class="sidebar-brand-name">MCAP Analysis</div>
+                <div class="sidebar-brand-sub">EDAG Holding</div>
+            </div>
+        </div>
+
+        <div class="sidebar-section-label">Main</div>
+        <nav class="sidebar-nav">
+            <a href="/" class="{{ 'active' if request.path == '/' else '' }}"><i class="ti ti-home"></i> Home</a>
+            <a href="/upload" class="{{ 'active' if request.path == '/upload' else '' }}"><i class="ti ti-upload"></i> Upload MCAP</a>
+        </nav>
+
+        <div class="sidebar-section-label">Analysis</div>
+        <nav class="sidebar-nav">
+            <a href="/analysis" class="{{ 'active' if '/analysis' in request.path else '' }}"><i class="ti ti-list-details"></i> Event Analysis</a>
+            <a href="/reports" class="{{ 'active' if request.path == '/reports' else '' }}"><i class="ti ti-file-report"></i> Reports</a>
+            <a href="/audit-logs" class="{{ 'active' if request.path == '/audit-logs' else '' }}"><i class="ti ti-history"></i> Audit Log</a>
+        </nav>
+
+        <div style="margin-top:auto; padding:12px 16px; border-top:0.5px solid rgba(255,255,255,0.08); text-align:center;">
+            <button onclick="openHelpModal()"
+                    style="background:rgba(255,255,255,0.08); border:none; color:rgba(255,255,255,0.6);
+                           width:28px; height:28px; border-radius:50%; cursor:pointer;
+                           margin:0 auto 6px; display:block; font-size:13px;" title="Help">?</button>
+            <div style="font-size:10px; color:rgba(255,255,255,0.3);">v1.0</div>
+        </div>
+
+    </aside>
+
+    <!-- ── App Main ── -->
+    <div class="app-main">
+
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="topbar-breadcrumb">Home / <span>Event Analysis</span></div>
+            <div class="topbar-right">
+                {% if draft %}
+                <button class="btn btn-sm btn-danger"
+                        onclick="showModal('delete-modal')">
+                    <i class="ti ti-trash"></i> Delete Analysis
+                </button>
+                {% endif %}
+                <a href="/upload" class="btn btn-primary btn-sm">
+                    <i class="ti ti-upload"></i> Upload MCAP
+                </a>
+            </div>
+        </div>
+
+        <!-- Page Content -->
+        <div class="page-content">
+
+            {% if saved %}
+            <div class="alert alert-success">✓ Form saved successfully.</div>
+            {% endif %}
+
+            {% if extraction and extraction.status and extraction.status != 'Extraction Completed' and 'Warning' not in extraction.status %}
+            <div class="alert alert-error">
+                <strong>Extraction Error:</strong> {{ extraction.status }}
+            </div>
+            {% endif %}
+
+            <!-- Page header info row -->
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <div>
+                    <div style="font-size:14px; font-weight:600; color:#1e293b;">Event Analysis</div>
+                    <div style="font-size:11px; color:#64748b;">Review extracted data, complete manual fields, update status and generate the final report.</div>
+                </div>
+                {% if dataset %}
+                <span class="file-badge">{{ dataset.original_filename }}</span>
+                {% endif %}
+            </div>
+
+            <!-- ── Sticky Tab Bar ── -->
+            {% if draft %}
+            <div class="analysis-tab-bar">
+                <nav class="analysis-tabs">
+                    <a href="#extraction-result" class="tab-link">Extraction Result</a>
+                    <a href="#event-timeline"    class="tab-link">Event Timeline</a>
+                    <a href="#analysis-summary"  class="tab-link">Analysis Summary</a>
+                    <a href="#complete-form"     class="tab-link">Complete Form</a>
+                    <a href="#generate-report"   class="tab-link">Generate Report</a>
+                </nav>
+                <div class="tab-status">
+                    <span class="status-pill {% if draft.status == 'Completed' %}success{% elif draft.status == 'In Progress' %}review{% else %}neutral{% endif %}">
+                        {{ draft.status }}
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if extraction and extraction.analysis_anchor_note %}
+            <div style="background:#fff7ed; border:0.5px solid #fbbf24; color:#92400e; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:10px;">
+                ℹ {{ extraction.analysis_anchor_note }}
+            </div>
+            {% endif %}
+
+            {% if extraction and extraction.braking_window_note %}
+            <div style="background:#fff7ed; border:0.5px solid #fbbf24; color:#92400e; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:10px;">
+                ℹ {{ extraction.braking_window_note }}
+            </div>
+            {% endif %}
+
+            <!-- ── Extraction Result + Processing Status ── -->
+            <div class="analysis-top-grid" id="extraction-result"
+                 style="grid-template-columns: 2fr 1.2fr;">
+
+                <!-- Extraction Result Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 style="font-size:16px; font-weight:600;">Extraction Result</h3>
+                        {% if draft %}
+                        <button class="btn btn-sm btn-secondary" onclick="showModal('reextract-modal')">
+                            <i class="ti ti-refresh"></i> Re-Extract
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="card-body" style="padding:16px 20px;">
+                        {% if extraction %}
+                        <div>
+                            <div style="display:flex; align-items:baseline; padding:5px 0; border-bottom:0.5px solid #f1f5f9;">
+                                <span style="font-size:14px; color:#334155; min-width:160px; flex-shrink:0;">Max Braking</span>
+                                <span id="ext-cell-max-braking" style="font-size:14px; color:#1e293b; font-weight:500;">{{ extraction.max_braking }}</span>
+                            </div>
+                            <div style="display:flex; align-items:baseline; padding:5px 0; border-bottom:0.5px solid #f1f5f9;">
+                                <span style="font-size:14px; color:#334155; min-width:160px; flex-shrink:0;">Braking Severity</span>
+                                <span class="severity-badge severity-{{ extraction.braking_severity | lower | replace(' ', '-') }}"
+                                      style="font-size:14px;">{{ extraction.braking_severity }}</span>
+                            </div>
+                            <div style="display:flex; align-items:baseline; padding:5px 0; border-bottom:0.5px solid #f1f5f9;">
+                                <span style="font-size:14px; color:#334155; min-width:160px; flex-shrink:0;">Velocity at Event</span>
+                                <span id="ext-cell-velocity" style="font-size:14px; color:#1e293b; font-weight:500;">{{ extraction.velocity_at_event }}</span>
+                            </div>
+                            <div style="display:flex; align-items:baseline; padding:5px 0; border-bottom:0.5px solid #f1f5f9;">
+                                <span style="font-size:14px; color:#334155; min-width:160px; flex-shrink:0;">ODD Trigger</span>
+                                <span id="ext-cell-odd" style="font-size:14px; color:#1e293b; font-weight:500;">
+                                    {{ extraction.odd_trigger }}
+                                    {% if extraction.odd_code_not_in_state_machine %}
+                                    <span style="color:#92400e; font-size:12px; font-weight:400;">
+                                        (StateAutonomousDriving__adSmTimeAndReasonToMrm / Not Available In Any State Machine)
+                                    </span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div style="display:flex; align-items:baseline; padding:5px 0; border-bottom:0.5px solid #f1f5f9;">
+                                <span style="font-size:14px; color:#334155; min-width:160px; flex-shrink:0;">SCG Constraints</span>
+                                <span id="ext-cell-scg" style="font-size:14px; color:#1e293b; font-weight:500;">{{ extraction.scg }}</span>
+                            </div>
+                            <div style="display:flex; align-items:baseline; padding:5px 0;">
+                                <span style="font-size:14px; color:#334155; min-width:160px; flex-shrink:0;">Status</span>
+                                <span style="font-size:14px; color:#1e293b; font-weight:500;">{{ extraction.status }}</span>
+                            </div>
+                        </div>
+                        {% else %}
+                        <p style="font-size:14px; color:#94a3b8;">No extraction data available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Processing Status Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 style="font-size:16px; font-weight:600;">Processing Status</h3>
+                    </div>
+                    <div class="card-body" style="padding:16px 20px;">
+                        <div class="status-stepper">
+
+                            {% set step1_done = dataset is not none %}
+                            <div class="step-row">
+                                <div class="step-indicator-col">
+                                    <div class="step-circle {% if step1_done %}done{% else %}pending{% endif %}">
+                                        {% if step1_done %}<i class="ti ti-check"></i>{% else %}1{% endif %}
+                                    </div>
+                                    <div class="step-line {% if step1_done %}done{% else %}pending{% endif %}"></div>
+                                </div>
+                                <div class="step-label {% if step1_done %}done{% else %}pending{% endif %}">MCAP Uploaded</div>
+                            </div>
+
+                            {% set step2_done = dataset is not none and dataset.validation_status == 'Valid' %}
+                            <div class="step-row">
+                                <div class="step-indicator-col">
+                                    <div class="step-circle {% if step2_done %}done{% else %}pending{% endif %}">
+                                        {% if step2_done %}<i class="ti ti-check"></i>{% else %}2{% endif %}
+                                    </div>
+                                    <div class="step-line {% if step2_done %}done{% else %}pending{% endif %}"></div>
+                                </div>
+                                <div class="step-label {% if step2_done %}done{% else %}pending{% endif %}">Validated</div>
+                            </div>
+
+                            {% set step3_done = extraction is not none %}
+                            <div class="step-row">
+                                <div class="step-indicator-col">
+                                    <div class="step-circle {% if step3_done %}done{% else %}pending{% endif %}">
+                                        {% if step3_done %}<i class="ti ti-check"></i>{% else %}3{% endif %}
+                                    </div>
+                                    <div class="step-line {% if step3_done %}done{% else %}pending{% endif %}"></div>
+                                </div>
+                                <div class="step-label {% if step3_done %}done{% else %}pending{% endif %}">Extraction Completed</div>
+                            </div>
+
+                            {% set step4_done = draft.status == 'Completed' %}
+                            <div class="step-row">
+                                <div class="step-indicator-col">
+                                    <div class="step-circle {% if step4_done %}done{% else %}pending{% endif %}">
+                                        {% if step4_done %}<i class="ti ti-check"></i>{% else %}4{% endif %}
+                                    </div>
+                                    <!-- no connector line after the last step -->
+                                </div>
+                                <div class="step-label {% if step4_done %}done{% else %}pending{% endif %}">Completed</div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Event Timeline Card ── -->
+            <div class="card" id="event-timeline">
+                <div class="card-header"><h3>Event Timeline</h3></div>
+                <div class="card-body" style="padding:0;">
+                    {% set timeline_rows = extraction.event_table if extraction else [] %}
+                    {% set extended_rows = timeline_rows | selectattr('is_extended') | list %}
+                    {% if extended_rows %}
+                    <div style="margin:12px 16px 0; display:flex; align-items:center; gap:10px;">
+                        <button type="button" id="toggle-extended-rows"
+                                onclick="toggleExtendedRows()"
+                                style="background:#f0f4f9; border:0.5px solid #dde2ea;
+                                       border-radius:6px; padding:5px 14px;
+                                       font-size:12px; color:#475569;
+                                       cursor:pointer; font-family:inherit;
+                                       display:flex; align-items:center; gap:6px;">
+                            <span id="toggle-icon">▶</span>
+                            <span id="toggle-label">Show full activation sequence</span>
+                            <span style="background:#e2e8f0; color:#64748b;
+                                         border-radius:10px; padding:1px 7px;
+                                         font-size:11px;">
+                                +{{ extended_rows | length }} rows
+                            </span>
+                        </button>
+                    </div>
+                    {% endif %}
+                    <div class="table-wrapper">
+                        <table class="app-table">
+                            <thead>
+                                <tr>
+                                    <th>Phase</th>
+                                    <th>Timestamp</th>
+                                    <th>HMI State</th>
+                                    <th>HMI Value</th>
+                                    <th>AD State</th>
+                                    <th>ODD Triggered</th>
+                                    <th>Time(s)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in timeline_rows %}
+                                {% set row_class = 'timeline-event-triggered' if row.phase == 'Event Triggered' else ('timeline-post-event' if row.phase == 'Post-Event' else 'timeline-pre-event') %}
+                                {% set badge_class = 'error' if row.phase == 'Event Triggered' else ('neutral' if row.phase in ['Post-Event', 'Pre Event'] else 'review') %}
+                                <tr class="{{ row_class }} {{ 'extended-row' if row.is_extended else 'core-row' }}"
+                                    {% if row.is_extended %}style="display:none;"{% endif %}>
+                                    <td><span class="status-pill {{ badge_class }}">{{ row.phase }}</span></td>
+                                    <td><span class="value-highlight">{{ row.timestamp }}</span></td>
+                                    <td>{{ row.hmi_state }}</td>
+                                    <td>{{ row.hmi_value }}</td>
+                                    <td>{{ row.ad_state }}</td>
+                                    <td>{% if row.odd_code %}{{ row.odd_code }} - {{ row.odd_triggered }}{% else %}{{ row.odd_triggered }}{% endif %}</td>
+                                    <td>{{ row.duration_seconds if row.duration_seconds is not none else 'N/A' }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="empty-state">
+                                        <p>No HMI state transitions detected in this file.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Analysis Summary Card ── -->
+            {% if draft %}
+            <div class="card form-section" id="analysis-summary">
+                <div class="card-header">
+                    <h3>Analysis Summary</h3>
+                    <span class="required-note">Auto-filled — edit as needed</span>
+                </div>
+                <div class="card-body">
+                    <form action="/analysis/{{ draft.draft_id }}/summary" method="POST" class="analysis-form">
+                        {% set as = extraction.analysis_summary if extraction and extraction.analysis_summary else {} %}
+                        <div class="form-grid">
+
+                            <!-- 1. Traffic Condition -->
+                            {% set tc = summary_saved.get("traffic_condition", "") %}
+                            <div class="form-group">
+                                <label for="traffic_condition">Traffic Condition</label>
+                                <select name="traffic_condition" id="traffic_condition" class="form-select">
+                                    <option value="" {% if not tc %}selected{% endif %}>-- Select --</option>
+                                    <option value="Low Traffic Condition"   {% if tc == "Low Traffic Condition"   %}selected{% endif %}>Low Traffic Condition</option>
+                                    <option value="Normal Traffic"          {% if tc == "Normal Traffic"          %}selected{% endif %}>Normal Traffic</option>
+                                    <option value="Heavy Traffic Condition" {% if tc == "Heavy Traffic Condition" %}selected{% endif %}>Heavy Traffic Condition</option>
+                                </select>
+                            </div>
+
+                            <!-- 2. ODD Pre-Event -->
+                            <div class="form-group full-width">
+                                <label for="summary_odd_pre_event">ODD Pre-Event</label>
+                                <textarea name="summary_odd_pre_event" id="summary_odd_pre_event"
+                                          class="form-textarea" rows="2">{{ summary_saved.get("summary_odd_pre_event") or as.get("summary_odd_pre_event", "") }}</textarea>
+                            </div>
+
+                            <!-- 3. Cause of Takeover -->
+                            <div class="form-group full-width">
+                                <label for="summary_cause_takeover">Cause of Takeover</label>
+                                <textarea name="summary_cause_takeover" id="summary_cause_takeover"
+                                          class="form-textarea" rows="2">{{ summary_saved.get("summary_cause_takeover") or as.get("summary_cause_takeover", "") }}</textarea>
+                            </div>
+
+                            <!-- 4. Driver Input (only when ODD 354/355 produces content) -->
+                            {% set driver_input_val = summary_saved.get("summary_driver_input") or as.get("summary_driver_input", "") %}
+                            {% if driver_input_val %}
+                            <div class="form-group full-width">
+                                <label for="summary_driver_input">Driver Input</label>
+                                <textarea name="summary_driver_input" id="summary_driver_input"
+                                          class="form-textarea" rows="2">{{ driver_input_val }}</textarea>
+                            </div>
+                            {% endif %}
+
+                            <!-- 5. Maximum Braking (on state) -->
+                            <div class="form-group full-width">
+                                <label for="summary_max_braking">Maximum Braking</label>
+                                <textarea name="summary_max_braking" id="summary_max_braking"
+                                          class="form-textarea" rows="2">{{ summary_saved.get("summary_max_braking") or as.get("summary_max_braking", "") }}</textarea>
+                            </div>
+
+                            <!-- 5b. OFF-state braking (auto-detected, only shown when present) -->
+                            {% set off_brake_val = summary_saved.get("summary_off_state_braking") or as.get("summary_off_state_braking", "") %}
+                            {% if off_brake_val %}
+                            <div class="form-group full-width">
+                                <label for="summary_off_state_braking">OFF State Braking</label>
+                                <textarea name="summary_off_state_braking" id="summary_off_state_braking"
+                                          class="form-textarea" rows="2">{{ off_brake_val }}</textarea>
+                            </div>
+                            {% endif %}
+
+                            <!-- 6. Haptic Signal (optional) -->
+                            {% set haptic_val = summary_saved.get("haptic_signal", "") %}
+                            <div class="form-group full-width">
+                                <div id="haptic-signal-container">
+                                    {% if haptic_val %}
+                                    <div style="display:flex; width:100%; gap:8px; margin-bottom:8px;" id="haptic-saved-row">
+                                        <input type="text" name="haptic_signal"
+                                               value="{{ haptic_val }}"
+                                               style="flex:1; padding:7px 10px; border:0.5px solid #dde2ea;
+                                                      border-radius:4px; font-size:13px;
+                                                      font-family:inherit; color:#334155;">
+                                        <button type="button"
+                                                onclick="document.getElementById('haptic-saved-row').remove(); document.getElementById('hapticAddBtn').style.display='inline-block';"
+                                                style="background:#fff; color:#dc2626; border:0.5px solid #fca5a5;
+                                                       border-radius:4px; padding:6px 10px; font-size:12px;
+                                                       cursor:pointer; flex-shrink:0;">✕</button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <button type="button" id="hapticAddBtn" class="btn btn-secondary btn-sm"
+                                        onclick="addHapticSignal()"
+                                        {% if haptic_val %}style="display:none;"{% endif %}>+ Add Haptic Signal</button>
+                            </div>
+
+                            <!-- 7. SCG Reason -->
+                            {% set scg_auto = "" %}
+                            {% if extraction %}
+                                {% if extraction.scg == "No Reason" %}
+                                    {% set scg_auto = "SCG Reason shows No Reason." %}
+                                {% else %}
+                                    {% set scg_auto = 'SCG Reason shows "' ~ extraction.scg ~ '" is triggered.' %}
+                                {% endif %}
+                            {% endif %}
+                            <div class="form-group full-width">
+                                <label for="summary_scg">SCG Reason</label>
+                                <textarea name="summary_scg" id="summary_scg"
+                                          class="form-textarea" rows="2">{{ summary_saved.get("summary_scg") or scg_auto }}</textarea>
+                            </div>
+
+                            <!-- 8. Driver Takeover (only when ODD 354/355 produces content) -->
+                            {% set driver_takeover_val = summary_saved.get("summary_driver_takeover") or as.get("summary_driver_takeover", "") %}
+                            {% if driver_takeover_val %}
+                            <div class="form-group full-width">
+                                <label for="summary_driver_takeover">Driver Takeover</label>
+                                <textarea name="summary_driver_takeover" id="summary_driver_takeover"
+                                          class="form-textarea" rows="2">{{ driver_takeover_val }}</textarea>
+                            </div>
+                            {% endif %}
+
+                            <!-- 9. No Abnormalities -->
+                            <div class="form-group full-width">
+                                <label for="summary_no_abnormalities">Abnormalities
+                                    <button type="button" class="example-btn" onclick="fillNoAbnormalities()">💡 Use example</button>
+                                </label>
+                                <textarea name="summary_no_abnormalities" id="summary_no_abnormalities"
+                                          class="form-textarea" rows="2"
+                                          placeholder="e.g. No abnormalities can be observed from the 3D camera.">{{ summary_saved.get("summary_no_abnormalities", "") }}</textarea>
+                            </div>
+
+                            <!-- 10. Conclusion (always visible, auto-generated for all ODD types) -->
+                            {% set conclusion_val = summary_saved.get("summary_conclusion") or as.get("summary_conclusion", "") %}
+                            <div class="form-group full-width">
+                                <label for="summary_conclusion">Conclusion</label>
+                                <textarea name="summary_conclusion" id="summary_conclusion"
+                                          class="form-textarea" rows="2"
+                                          placeholder="Enter conclusion for this event (e.g. True Positive / False Positive assessment and reasoning)...">{{ conclusion_val }}</textarea>
+                            </div>
+
+                            <!-- 11. Braking Assessment -->
+                            {% set ba = summary_saved.get("braking_assessment", "") %}
+                            <div class="form-group">
+                                <label for="braking_assessment">Braking Assessment</label>
+                                <select name="braking_assessment" id="braking_assessment" class="form-select">
+                                    <option value="" {% if not ba %}selected{% endif %}>-- Select --</option>
+                                    <option value="Plausible Braking"   {% if ba == "Plausible Braking"   %}selected{% endif %}>Plausible Braking</option>
+                                    <option value="Implausible Braking" {% if ba == "Implausible Braking" %}selected{% endif %}>Implausible Braking</option>
+                                </select>
+                            </div>
+
+                            <!-- 12. Extra lines — saved -->
+                            {% for line in extra_lines_saved %}
+                            <div class="form-group extra-line-item full-width" id="saved-line-{{ loop.index0 }}">
+                                <label>Additional Line {{ loop.index }}</label>
+                                <div style="display:flex; gap:6px;">
+                                    <input type="text" name="extra_line_saved_{{ loop.index0 }}"
+                                           class="form-input" style="flex:1;"
+                                           value="{{ line }}">
+                                    <button type="button" class="btn btn-ghost btn-sm"
+                                            style="color:#dc2626;"
+                                            onclick="this.parentElement.parentElement.remove()">&#x2715;</button>
+                                </div>
+                            </div>
+                            {% endfor %}
+
+                            <!-- 12. Extra lines — dynamic container + add button -->
+                            <div class="form-group full-width">
+                                <div id="extra-lines-container"></div>
+                                <button type="button" onclick="addExtraLine()"
+                                        class="btn btn-secondary btn-sm">+ Add Line</button>
+                            </div>
+
+                            <!-- Screenshots -->
+                            <div class="form-group full-width">
+                                <label>Screenshots / Attachments</label>
+                                {% for ss in screenshots_saved %}
+                                <div class="screenshot-block" id="saved-screenshot-{{ loop.index0 }}">
+                                    <div class="screenshot-block-header">
+                                        <span>Screenshot {{ loop.index }}</span>
+                                        <button type="button" class="btn btn-sm btn-secondary"
+                                            onclick="document.getElementById('saved-screenshot-{{ loop.index0 }}').remove()">
+                                            ✕ Remove</button>
+                                    </div>
+                                    <input type="text" class="form-input screenshot-title-input"
+                                           placeholder="Screenshot title..."
+                                           value="{{ ss.title }}"
+                                           style="margin-bottom:0.5rem;"
+                                           oninput="this.closest('.screenshot-block').querySelector('.screenshot-title-display').value=this.value">
+                                    <div class="paste-area" style="border-color:#10b981;">
+                                        <span class="paste-hint">Screenshot saved ✓</span>
+                                        {% if ss.filename %}
+                                        <img src="/screenshots/{{ ss.filename }}"
+                                             style="max-width:100%;margin-top:0.5rem;border-radius:4px;">
+                                        {% endif %}
+                                    </div>
+                                    <input type="hidden" class="screenshot-filename"
+                                           name="screenshot_filename_{{ loop.index0 }}"
+                                           value="{{ ss.filename }}">
+                                    <input type="hidden" class="screenshot-title-display"
+                                           name="screenshot_title_display_{{ loop.index0 }}"
+                                           value="{{ ss.title }}">
+                                </div>
+                                {% endfor %}
+                                <div id="screenshots-container"></div>
+                                <button type="button" class="btn btn-secondary btn-sm"
+                                        onclick="addScreenshot()">+ Add Screenshot</button>
+                            </div>
+
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Summary</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ── Complete Event Analysis Form Card ── -->
+            {% if draft %}
+            <div class="card form-section" id="complete-form">
+                <div class="card-header">
+                    <h3>Complete Event Analysis Form</h3>
+                    <span class="required-note">Fields marked * are required</span>
+                </div>
+                <div class="card-body">
+                    {% if draft.status == 'Draft' %}
+                    <div style="background:#fef9c3; border:0.5px solid #fbbf24; color:#92400e; padding:10px 14px; border-radius:4px; font-size:13px; margin-bottom:12px;">
+                        ⚠ Please save the Analysis Summary first before completing the event analysis form.
+                    </div>
+                    {% endif %}
+                    <form action="/analysis/{{ draft.draft_id }}/form" method="POST" class="analysis-form">
+                        <div class="form-grid">
+
+                            <!-- Event Classification -->
+                            <div class="form-group {% if manual.event_classification and not manual.event_classification.field_value %}highlight-required{% endif %}">
+                                <label for="event_classification">Event Classification (Strong Braking) *
+                                    {% if extraction and extraction.max_braking_raw is not none %}
+                                    {% set mb = extraction.max_braking_raw | float(0) %}
+                                    <span class="tooltip-wrapper">
+                                        <span class="tooltip-icon">?</span>
+                                        {% if mb > -4 %}
+                                        <span class="tooltip-text">Suggested: Below -4</span>
+                                        {% elif mb > -7 %}
+                                        <span class="tooltip-text">Suggested: -4 to -7</span>
+                                        {% else %}
+                                        <span class="tooltip-text">Suggested: -7 to -10</span>
+                                        {% endif %}
+                                    </span>
+                                    {% endif %}
+                                </label>
+                                <select name="event_classification" id="event_classification" class="form-select" required>
+                                    <option value="">-- Select --</option>
+                                    {% for ec in event_classifications %}
+                                    <option value="{{ ec }}"
+                                        {% if manual.event_classification and manual.event_classification.field_value == ec %}selected{% endif %}>
+                                        {{ ec }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Event Date -->
+                            <div class="form-group {% if manual.event_date and not manual.event_date.field_value %}highlight-required{% endif %}">
+                                <label for="event_date">Event Date *</label>
+                                <input type="date" name="event_date" id="event_date"
+                                       class="form-input"
+                                       value="{{ manual.event_date.field_value if manual.event_date and manual.event_date.field_value else '' }}"
+                                       required>
+                            </div>
+
+                            <!-- Event Timestamp -->
+                            <div class="form-group {% if manual.event_timestamp and not manual.event_timestamp.field_value %}highlight-required{% endif %}">
+                                <label for="event_timestamp">Event Timestamp *</label>
+                                <input type="datetime-local" name="event_timestamp" id="event_timestamp"
+                                       class="form-input"
+                                       value="{{ manual.event_timestamp.field_value if manual.event_timestamp and manual.event_timestamp.field_value else '' }}"
+                                       required>
+                            </div>
+
+                            <!-- Vehicle / Van -->
+                            <div class="form-group {% if manual.vehicle_van and not manual.vehicle_van.field_value %}highlight-required{% endif %}">
+                                <label for="vehicle_van">Vehicle / Van *</label>
+                                <input type="text" name="vehicle_van" id="vehicle_van"
+                                       class="form-input"
+                                       value="{{ manual.vehicle_van.field_value if manual.vehicle_van and manual.vehicle_van.field_value else '' }}"
+                                       placeholder="e.g. EDAG-VH-001" required>
+                            </div>
+
+                            <!-- Created By -->
+                            <div class="form-group {% if manual.created_by_name and not manual.created_by_name.field_value %}highlight-required{% endif %}">
+                                <label for="created_by_name">Created By *</label>
+                                <select name="created_by_name" id="created_by_name" class="form-select" required>
+                                    <option value="" disabled selected>-- Select Technician --</option>
+                                    {% for tech in technicians %}
+                                    <option value="{{ tech.name }}"
+                                        {% if manual.created_by_name and manual.created_by_name.field_value == tech.name %}selected{% endif %}>
+                                        {{ tech.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Technician Remarks (full width) -->
+                            <div class="form-group full-width">
+                                <label for="technician_remarks">Technician Remarks</label>
+                                <textarea name="technician_remarks" id="technician_remarks"
+                                          class="form-textarea" rows="4"
+                                          placeholder="Enter any additional observations or notes...">{{ manual.technician_remarks.field_value if manual.technician_remarks and manual.technician_remarks.field_value else '' }}</textarea>
+                            </div>
+
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" name="save_type" value="draft" class="btn btn-secondary"
+                                    {% if draft.status == 'Draft' %}disabled{% endif %}>
+                                Save as Draft
+                            </button>
+                            <button type="submit" name="save_type" value="save" class="btn btn-primary"
+                                    {% if draft.status == 'Draft' %}disabled{% endif %}>
+                                Save &amp; Submit
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ── Generate Report Card ── -->
+            <div class="card" id="generate-report">
+                <div class="card-header" style="border-top:3px solid #1b3a6b;">
+                    <h3>Generate PDF Report</h3>
+                </div>
+                <div class="card-body">
+                    {% if draft.status != 'Completed' %}
+                    <div class="generate-blocked">
+                        ⚠ Report generation is only available when status is <strong>Completed</strong>.
+                        Current status: <strong>{{ draft.status }}</strong>
+                    </div>
+                    {% elif not is_draft_complete(draft.draft_id) %}
+                    <div class="generate-blocked">
+                        ⚠ Please complete all required fields before generating the report.
+                    </div>
+                    {% else %}
+                    <div class="generate-ready">
+                        ✓ All required fields completed. Report is ready to generate.
+                    </div>
+                    <form id="generate-form" action="/analysis/{{ draft.draft_id }}/generate" method="POST" style="display:none;"></form>
+                    <button class="btn btn-generate" onclick="showModal('generate-modal')">
+                        <i class="ti ti-file-text"></i> Generate PDF Report
+                    </button>
+                    {% endif %}
+
+                    {% if report %}
+                    <div class="report-generated-info">
+                        <span>✓ Report already generated: <strong>{{ report.pdf_filename }}</strong></span>
+                        <a href="/reports/{{ report.report_id }}/download" class="btn btn-outline btn-sm">Download Report</a>
+                        <a href="/reports" class="btn btn-outline btn-sm">View All Reports</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="display:flex; justify-content:space-between; align-items:center;
+                        padding:16px 0; margin-top:8px; border-top:0.5px solid #dde2ea;">
+                <button onclick="window.history.back()" class="btn btn-ghost"
+                        style="display:flex; align-items:center; gap:6px;">
+                    <i class="ti ti-arrow-left" style="font-size:14px;" aria-hidden="true"></i>
+                    Back
+                </button>
+            </div>
+
+        </div><!-- /page-content -->
+    </div><!-- /app-main -->
+</div><!-- /app-layout -->
+
+{% if draft %}
+<!-- ── Modals ── -->
+<div id="delete-modal" class="modal-overlay" onclick="if(event.target===this)hideModal('delete-modal')">
+    <div class="modal-box">
+        <div class="modal-title">Delete Analysis</div>
+        <div class="modal-body">Delete this analysis? This action cannot be undone. The MCAP file and all extracted data will be permanently removed.</div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('delete-modal')">Cancel</button>
+            <form action="/analysis/{{ draft.draft_id }}/delete" method="POST" style="display:inline;">
+                <button type="submit" class="btn btn-primary" style="background:#ef4444; border-color:#ef4444;">Delete</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="reextract-modal" class="modal-overlay" onclick="if(event.target===this)hideModal('reextract-modal')">
+    <div class="modal-box">
+        <div class="modal-title">Re-Extract Data</div>
+        <div class="modal-body">Re-extract this MCAP file? This will overwrite the current extraction results and cannot be undone.</div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('reextract-modal')">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="startReextract()">Re-Extract</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Re-Extract Loading Overlay ── -->
+<div id="reextract-overlay"
+     data-reextract-url="{{ url_for('reextract', draft_id=draft.draft_id) }}">
+    <div class="rx-card">
+        <div class="rx-header">
+            <i class="ti ti-refresh" style="font-size:19px; color:#1b3a6b;"></i>
+            <span class="rx-title">Re-Extracting MCAP Data</span>
+        </div>
+        <div class="rx-sub">This may take a few moments. Please don't close this page.</div>
+        <div class="rx-progress-track">
+            <div class="rx-progress-bar" id="rx-progress-bar"></div>
+        </div>
+        <div id="rx-steps"></div>
+    </div>
+</div>
+
+<div id="generate-modal" class="modal-overlay" onclick="if(event.target===this)hideModal('generate-modal')">
+    <div class="modal-box">
+        <div class="modal-title">Generate PDF Report</div>
+        <div class="modal-body">Generate the final PDF report? Make sure all information is correct before proceeding. The report will be available on the Reports page.</div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="hideModal('generate-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="document.getElementById('generate-form').submit()">Generate</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function showModal(id) { document.getElementById(id).classList.add('open'); }
+    function hideModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    // ── Re-Extract loading overlay ──────────────────────────────────────
+    const RX_STEP_LABELS = [
+        'Reading MCAP file',
+        'Decoding protobuf signals',
+        'Building event timeline',
+        'Computing braking and velocity',
+        'Saving extraction results',
+    ];
+    const RX_STEP_PROGRESS = [15, 30, 55, 78, 100];
+    const RX_STEP_INTERVAL_MS = 800;
+
+    let rxCurrentStep   = 0;
+    let rxStepStartedAt = [];
+    let rxTimer         = null;
+
+    function rxBuildSteps() {
+        const container = document.getElementById('rx-steps');
+        container.innerHTML = '';
+        RX_STEP_LABELS.forEach((label, i) => {
+            const row = document.createElement('div');
+            row.className = 'rx-step';
+            row.innerHTML =
+                `<span class="rx-step-icon rx-pending" id="rx-icon-${i}"></span>` +
+                `<span class="rx-step-label rx-pending" id="rx-label-${i}">${label}</span>` +
+                `<span class="rx-step-time" id="rx-time-${i}"></span>`;
+            container.appendChild(row);
+        });
+    }
+
+    function rxSetProgress(pct) {
+        document.getElementById('rx-progress-bar').style.width = pct + '%';
+    }
+
+    function rxActivateStep(i) {
+        document.getElementById(`rx-icon-${i}`).className = 'rx-step-icon rx-active';
+        document.getElementById(`rx-label-${i}`).className = 'rx-step-label rx-label-active';
+        rxStepStartedAt[i] = Date.now();
+        rxSetProgress(RX_STEP_PROGRESS[i]);
+    }
+
+    function rxCompleteStep(i) {
+        document.getElementById(`rx-icon-${i}`).className = 'rx-step-icon rx-done';
+        document.getElementById(`rx-label-${i}`).className = 'rx-step-label rx-label-done';
+        const startedAt = rxStepStartedAt[i] || Date.now();
+        const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+        document.getElementById(`rx-time-${i}`).textContent = elapsed + 's';
+    }
+
+    function rxAdvance() {
+        if (rxCurrentStep >= RX_STEP_LABELS.length) {
+            clearInterval(rxTimer);
+            return;
+        }
+        if (rxCurrentStep > 0) rxCompleteStep(rxCurrentStep - 1);
+        rxActivateStep(rxCurrentStep);
+        rxCurrentStep++;
+        if (rxCurrentStep >= RX_STEP_LABELS.length) clearInterval(rxTimer);
+    }
+
+    function rxFinishAllSteps() {
+        clearInterval(rxTimer);
+        for (let i = 0; i < RX_STEP_LABELS.length; i++) {
+            if (i >= rxCurrentStep) rxActivateStep(i);
+            rxCompleteStep(i);
+        }
+        rxSetProgress(100);
+    }
+
+    function startReextract() {
+        hideModal('reextract-modal');
+
+        const overlay = document.getElementById('reextract-overlay');
+        const reextractUrl = overlay.dataset.reextractUrl;
+
+        rxBuildSteps();
+        rxCurrentStep   = 0;
+        rxStepStartedAt = [];
+        rxSetProgress(0);
+        overlay.style.display = 'flex';
+
+        rxAdvance();
+        rxTimer = setInterval(rxAdvance, RX_STEP_INTERVAL_MS);
+
+        fetch(reextractUrl, { method: 'POST' })
+            .then(r => r.json().catch(() => { throw new Error('Unexpected server response.'); }))
+            .then(data => {
+                if (data.status !== 'success') {
+                    throw new Error(data.message || 'Re-extraction failed.');
+                }
+                rxFinishAllSteps();
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+            })
+            .catch(err => {
+                clearInterval(rxTimer);
+                overlay.style.display = 'none';
+                showToast(err.message || 'Re-extraction failed. Please try again.', 'error');
+            });
+    }
+
+    let extendedVisible = false;
+
+    function toggleExtendedRows() {
+        extendedVisible = !extendedVisible;
+
+        document.querySelectorAll('.extended-row').forEach(row => {
+            row.style.display = extendedVisible ? '' : 'none';
+        });
+
+        document.getElementById('toggle-icon').textContent =
+            extendedVisible ? '▼' : '▶';
+        document.getElementById('toggle-label').textContent =
+            extendedVisible ? 'Hide full activation sequence'
+                            : 'Show full activation sequence';
+    }
+
+    document.querySelectorAll('.highlight-required select, .highlight-required input').forEach(el => {
+        if (!el.value) el.classList.add('field-missing');
+    });
+
+    function addHapticSignal() {
+        const container = document.getElementById('haptic-signal-container');
+        const btn = document.getElementById('hapticAddBtn');
+        btn.style.display = 'none';
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.width = '100%';
+        div.style.gap = '8px';
+        div.style.marginBottom = '8px';
+        div.innerHTML = `
+            <input type="text" name="haptic_signal"
+                   placeholder="Enter haptic signal details..."
+                   style="flex:1; padding:7px 10px; border:0.5px solid #dde2ea;
+                          border-radius:4px; font-size:13px;
+                          font-family:inherit; color:#334155;">
+            <button type="button"
+                    onclick="this.parentElement.remove(); document.getElementById('hapticAddBtn').style.display='inline-block';"
+                    style="background:#fff; color:#dc2626; border:0.5px solid #fca5a5;
+                           border-radius:4px; padding:6px 10px; font-size:12px;
+                           cursor:pointer; flex-shrink:0;">✕</button>`;
+        container.appendChild(div);
+    }
+
+    function brakeToggle(show) {
+        document.getElementById('brakeField').style.display = show ? 'block' : 'none';
+        document.getElementById('brakeAddBtn').style.display = show ? 'none' : 'inline-block';
+        if (!show) document.getElementById('brake_pedal_input').value = '';
+    }
+
+    let extraLineCount = 0;
+    function addExtraLine() {
+        extraLineCount++;
+        const container = document.getElementById('extra-lines-container');
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.gap = '8px';
+        div.style.marginTop = '8px';
+        div.style.alignItems = 'center';
+        div.innerHTML = `
+            <input type="text" name="extra_line_${extraLineCount}"
+                   placeholder="Enter additional analysis line..."
+                   style="flex:1; padding:7px 10px; border:0.5px solid #dde2ea;
+                          border-radius:4px; font-size:13px;
+                          font-family:inherit; color:#334155;">
+            <button type="button" onclick="this.parentElement.remove()"
+                    style="background:#fff; color:#dc2626;
+                           border:0.5px solid #fca5a5;
+                           border-radius:4px; padding:6px 10px;
+                           font-size:12px; cursor:pointer;">
+                ✕
+            </button>`;
+        container.appendChild(div);
+    }
+
+    const draftId = parseInt("{{ draft.draft_id }}");
+    const savedScreenshotCount = parseInt("{{ screenshots_saved | length }}");
+    let screenshotCount = savedScreenshotCount;
+
+    function setupPasteArea(container) {
+        const pasteArea = container.querySelector('.paste-area');
+        const preview   = container.querySelector('.screenshot-preview');
+        const hint      = pasteArea.querySelector('.paste-hint');
+
+        pasteArea.addEventListener('click', () => pasteArea.focus());
+        pasteArea.addEventListener('paste', async (e) => {
+            e.preventDefault();
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const blob   = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                        const base64data = ev.target.result;
+                        hint.textContent = 'Uploading...';
+                        const title = container.querySelector('.screenshot-title-input').value;
+                        try {
+                            const resp   = await fetch(`/analysis/${draftId}/screenshot`, {
+                                method:  'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body:    JSON.stringify({data: base64data, title}),
+                            });
+                            const result = await resp.json();
+                            if (result.filename) {
+                                container.querySelector('.screenshot-filename').value      = result.filename;
+                                container.querySelector('.screenshot-title-display').value = title;
+                                preview.src           = base64data;
+                                preview.style.display = 'block';
+                                hint.textContent      = 'Screenshot uploaded ✓';
+                                pasteArea.style.borderColor = '#10b981';
+                            } else {
+                                hint.textContent = 'Upload failed. Try again.';
+                            }
+                        } catch (_) {
+                            hint.textContent = 'Upload failed. Try again.';
+                        }
+                    };
+                    reader.readAsDataURL(blob);
+                    break;
+                }
+            }
+        });
+    }
+
+    function addScreenshot() {
+        const idx = screenshotCount++;
+        const div = document.createElement('div');
+        div.className = 'screenshot-block';
+        div.id = 'screenshot-' + idx;
+        div.innerHTML =
+            '<div class="screenshot-block-header">' +
+                '<span>Screenshot</span>' +
+                '<button type="button" class="btn btn-sm btn-secondary" ' +
+                    'onclick="document.getElementById(\'screenshot-' + idx + '\').remove()">✕ Remove</button>' +
+            '</div>' +
+            '<input type="text" class="form-input screenshot-title-input" ' +
+                'placeholder="e.g. Acceleration Graph, Velocity Graph..." style="margin-bottom:0.5rem;" ' +
+                'oninput="this.closest(\'.screenshot-block\').querySelector(\'.screenshot-title-display\').value=this.value">' +
+            '<div class="paste-area" tabindex="0">' +
+                '<span class="paste-hint">Click here then paste screenshot (Ctrl+V)</span>' +
+                '<img class="screenshot-preview" style="display:none;max-width:100%;margin-top:0.5rem;border-radius:4px;">' +
+            '</div>' +
+            '<input type="hidden" class="screenshot-filename" name="screenshot_filename_' + idx + '">' +
+            '<input type="hidden" class="screenshot-title-display" name="screenshot_title_display_' + idx + '">';
+        document.getElementById('screenshots-container').appendChild(div);
+        setupPasteArea(div);
+    }
+
+    // Scrollspy — highlight active tab via IntersectionObserver
+    const scrollSections = [
+        { id: 'extraction-result' },
+        { id: 'event-timeline'    },
+        { id: 'analysis-summary'  },
+        { id: 'complete-form'     },
+        { id: 'generate-report'   },
+    ];
+
+    const scrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
+                const link = document.querySelector(`a[href*="${entry.target.id}"]`);
+                if (link) link.classList.add('active');
+            }
+        });
+    }, {
+        root:       document.querySelector('.page-content'),
+        rootMargin: '-30% 0px -60% 0px',
+        threshold:  0,
+    });
+
+    scrollSections.forEach(s => {
+        const el = document.getElementById(s.id);
+        if (el) scrollObserver.observe(el);
+    });
+
+    window.addEventListener('load', function () {
+        const hash = window.location.hash;
+        if (hash) {
+            const el = document.querySelector(hash);
+            if (el) {
+                setTimeout(() => {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
+            }
+        }
+    });
+
+function fillNoAbnormalities() {
+    document.getElementById('summary_no_abnormalities').value =
+        'No abnormalities can be observed from the 3D camera.';
+}
+
+function showToast(message, type = 'info', duration = 4000) {
+    const colors = {
+        info:    { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af' },
+        success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534' },
+        error:   { bg: '#fef2f2', border: '#fecaca', text: '#991b1b' },
+        warning: { bg: '#fff7ed', border: '#fde68a', text: '#92400e' },
+        neutral: { bg: '#f8fafc', border: '#dde2ea', text: '#475569' },
+    };
+    const c = colors[type] || colors.info;
+    const toast = document.createElement('div');
+    toast.style.cssText = `background:${c.bg}; border:0.5px solid ${c.border}; color:${c.text}; padding:10px 14px; border-radius:6px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,0.08); max-width:340px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; animation:slideIn 0.2s ease-out;`;
+    toast.innerHTML = `<span>${message}</span><span style="cursor:pointer;opacity:0.6;flex-shrink:0;" onclick="this.parentElement.remove()">✕</span>`;
+    document.getElementById('toast-container').appendChild(toast);
+    setTimeout(() => toast.remove(), duration);
+}
+
+function openHelpModal()  { document.getElementById('help-modal').style.display = 'flex'; }
+function closeHelpModal() { document.getElementById('help-modal').style.display = 'none'; }
+</script>
+
+<!-- ── Toast Container ── -->
+<div id="toast-container" style="position:fixed; top:16px; right:16px; z-index:10001; display:flex; flex-direction:column; gap:8px;"></div>
+
+<!-- ── Help Modal ── -->
+<div id="help-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+     background:rgba(0,0,0,0.4); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:8px; padding:24px; width:440px; max-width:90%;
+                box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+        <h3 style="font-size:15px; font-weight:600; color:#1e293b; margin-bottom:14px;">How to use this system</h3>
+        <ol style="font-size:13px; color:#475569; line-height:1.8; padding-left:18px;">
+            <li>Upload an MCAP file and select your name as technician</li>
+            <li>Review the automated extraction results on the Analysis Page</li>
+            <li>Save the Analysis Summary, then complete the verification form</li>
+            <li>Generate the PDF report once the analysis is marked Completed</li>
+            <li>Find and download all reports from the Reports Page</li>
+        </ol>
+        <button onclick="closeHelpModal()" class="btn btn-primary btn-sm" style="margin-top:14px;">Got it</button>
+    </div>
+</div>
+
+<script>
+(function () {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('duplicate_notice') === 'true') {
+        const filename = params.get('original_filename') || 'this file';
+        showToast(
+            `This MCAP file was already analyzed previously (as “${filename}”). You have been redirected to the existing analysis instead of creating a duplicate entry.`,
+            'warning',
+            25000
+        );
+    }
+
+    // ── Re-extract result flash (one-shot, from Flask session) ──────────
+    const reextractChanges  = {{ reextract_changes | tojson }};
+    const reextractNoChange = {{ reextract_no_change | tojson }};
+    const REEXTRACT_CELL_MAP = {
+        max_braking:         'ext-cell-max-braking',
+        velocity_v1:         'ext-cell-velocity',
+        velocity_v2:         'ext-cell-velocity',
+        scg_reason:          'ext-cell-scg',
+        event_triggered_odd: 'ext-cell-odd',
+    };
+
+    if (reextractChanges && Object.keys(reextractChanges).length > 0) {
+        const lines = Object.values(reextractChanges).map(c => `${c.label}: ${c.old} → ${c.new}`);
+        showToast(`✓ Re-extraction complete<br>${lines.join('<br>')}`, 'success', 6000);
+
+        const highlightedCells = new Set();
+        Object.keys(reextractChanges).forEach(key => {
+            const cellId = REEXTRACT_CELL_MAP[key];
+            if (!cellId || highlightedCells.has(cellId)) return;
+            highlightedCells.add(cellId);
+            const el = document.getElementById(cellId);
+            if (el) {
+                el.classList.add('rx-pulse-highlight');
+                setTimeout(() => el.classList.remove('rx-pulse-highlight'), 500);
+            }
+        });
+    } else if (reextractNoChange) {
+        showToast(
+            '↻ Re-extraction complete — no changes detected. All values match the previous extraction.',
+            'neutral',
+            4000
+        );
+    }
+})();
+</script>
+
+</body>
+</html>
