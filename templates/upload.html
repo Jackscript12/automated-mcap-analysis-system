@@ -104,6 +104,7 @@
                     </div>
                     <div class="card-body">
                         <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                             <div class="form-group" style="margin-bottom:10px;">
                                 <label for="created_by_name">Uploaded By <span style="color:#e53e3e;">*</span></label>

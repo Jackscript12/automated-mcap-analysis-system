@@ -32,6 +32,7 @@
 
     <section class="upload-card">
         <form action="/upload" method="POST" enctype="multipart/form-data" class="upload-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <!-- Technician Dropdown -->
             <div class="form-group">

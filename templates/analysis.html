@@ -463,6 +463,7 @@
                 </div>
                 <div class="card-body">
                     <form action="/analysis/{{ draft.draft_id }}/summary" method="POST" class="analysis-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         {% set as = extraction.analysis_summary if extraction and extraction.analysis_summary else {} %}
                         <div class="form-grid">
 
@@ -680,6 +681,7 @@
                     </div>
                     {% endif %}
                     <form action="/analysis/{{ draft.draft_id }}/form" method="POST" class="analysis-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="form-grid">
 
                             <!-- Event Classification -->
@@ -794,7 +796,7 @@
                     <div class="generate-ready">
                         ✓ All required fields completed. Report is ready to generate.
                     </div>
-                    <form id="generate-form" action="/analysis/{{ draft.draft_id }}/generate" method="POST" style="display:none;"></form>
+                    <form id="generate-form" action="/analysis/{{ draft.draft_id }}/generate" method="POST" style="display:none;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
                     <button class="btn btn-generate" onclick="showModal('generate-modal')">
                         <i class="ti ti-file-text"></i> Generate PDF Report
                     </button>
@@ -833,6 +835,7 @@
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="hideModal('delete-modal')">Cancel</button>
             <form action="/analysis/{{ draft.draft_id }}/delete" method="POST" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-primary" style="background:#ef4444; border-color:#ef4444;">Delete</button>
             </form>
         </div>

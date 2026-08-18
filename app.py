@@ -19,6 +19,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     send_file, send_from_directory, abort, jsonify, session,
 )
+from flask_wtf.csrf import CSRFProtect
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -74,6 +75,7 @@ app.secret_key = os.environ.get(
     'FLASK_SECRET_KEY',
     secrets.token_hex(32)  # fallback if .env missing
 )
+csrf = CSRFProtect(app)
 
 _MYT = timezone(timedelta(hours=8))
 
@@ -375,6 +377,7 @@ def complete_form(draft_id):
 # ─────────────────────────────────────────────
 # Screenshot upload (AJAX)
 # ─────────────────────────────────────────────
+@csrf.exempt
 @app.route("/analysis/<int:draft_id>/screenshot", methods=["POST"])
 def upload_screenshot(draft_id):
     data  = request.json.get("data", "")
@@ -745,6 +748,7 @@ def _build_pdf(pdf_path, draft, dataset, ext_data, summary):
 # ─────────────────────────────────────────────
 # Technician management
 # ─────────────────────────────────────────────
+@csrf.exempt
 @app.route("/technicians/add", methods=["POST"])
 def add_technician_route():
     data = request.json or {}
@@ -756,6 +760,7 @@ def add_technician_route():
     return jsonify({"success": False, "error": f'"{name}" already exists.'}), 409
 
 
+@csrf.exempt
 @app.route("/technicians/delete", methods=["POST"])
 def delete_technician_route():
     data = request.get_json() or {}
@@ -781,6 +786,7 @@ def delete_analysis(draft_id):
 # ─────────────────────────────────────────────
 # Re-extract from original MCAP file
 # ─────────────────────────────────────────────
+@csrf.exempt
 @app.route("/analysis/<int:draft_id>/reextract", methods=["POST"])
 def reextract(draft_id):
     draft = get_report_draft(draft_id)
