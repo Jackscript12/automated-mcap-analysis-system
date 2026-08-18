@@ -107,10 +107,15 @@ def to_myt_filter(value):
 UPLOAD_FOLDER      = "uploads"
 REPORTS_FOLDER     = "reports"
 SCREENSHOTS_FOLDER = os.path.join(os.path.dirname(__file__), "screenshots")
-ALLOWED_EXTENSIONS = {"mcap"}
 
-app.config["UPLOAD_FOLDER"]  = UPLOAD_FOLDER
-app.config["REPORTS_FOLDER"] = REPORTS_FOLDER
+# File upload security constants
+ALLOWED_EXTENSIONS  = {".mcap"}
+MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500MB
+MAX_FILENAME_LENGTH = 200
+
+app.config["UPLOAD_FOLDER"]     = UPLOAD_FOLDER
+app.config["REPORTS_FOLDER"]    = REPORTS_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_BYTES  # hard server-side limit
 
 os.makedirs(UPLOAD_FOLDER,      exist_ok=True)
 os.makedirs(REPORTS_FOLDER,     exist_ok=True)
@@ -126,8 +131,55 @@ with app.app_context():
 # ─────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────
-def _allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+def validate_mcap_upload(file):
+    """
+    Validate uploaded file before processing.
+    Returns (is_valid: bool, error_message: str)
+    """
+    # Check file object exists
+    if not file or file.filename == '':
+        return False, "No file selected."
+
+    # Sanitize and check filename length
+    filename = file.filename
+    if len(filename) > MAX_FILENAME_LENGTH:
+        return False, "Filename is too long."
+
+    # Check file extension (case-insensitive)
+    _, ext = os.path.splitext(filename.lower())
+    if ext not in ALLOWED_EXTENSIONS:
+        return False, (
+            f"Invalid file type '{ext}'. "
+            f"Only .mcap files are accepted."
+        )
+
+    # Check file size by reading content length
+    file.seek(0, 2)          # seek to end
+    file_size = file.tell()  # get position = size
+    file.seek(0)             # reset to start
+
+    if file_size == 0:
+        return False, "Uploaded file is empty."
+
+    if file_size > MAX_FILE_SIZE_BYTES:
+        size_mb = file_size / (1024 * 1024)
+        return False, (
+            f"File too large ({size_mb:.1f} MB). "
+            f"Maximum allowed size is 500 MB."
+        )
+
+    # Check MCAP magic bytes (first 8 bytes)
+    # Valid MCAP files start with \x89MCAP
+    header = file.read(8)
+    file.seek(0)  # reset after reading
+
+    if not header.startswith(b'\x89MCAP'):
+        return False, (
+            "File does not appear to be a valid "
+            "MCAP file (invalid file header)."
+        )
+
+    return True, None
 
 
 def _get_report_by_draft(draft_id):
@@ -223,20 +275,17 @@ def upload():
         return render_template("upload.html", message=None, technicians=get_all_technicians())
 
     # ── Validate form inputs ──────────────────────────────────────────────
-    if "mcapFile" not in request.files:
-        return _upload_error("No file part found.")
-
-    file            = request.files["mcapFile"]
+    file            = request.files.get("mcapFile")
     created_by_name = request.form.get("created_by_name", "").strip()
-
-    if file.filename == "":
-        return _upload_error("Please select a file first.")
 
     if not created_by_name:
         return _upload_error("Please select a technician before uploading.")
 
-    if not _allowed_file(file.filename):
-        return _upload_error("Invalid file type. Please upload an .mcap file only.")
+    # Validate before doing anything else — filename, size, and MCAP magic
+    # bytes, in addition to the extension _allowed_file() used to check.
+    is_valid, error_msg = validate_mcap_upload(file)
+    if not is_valid:
+        return _upload_error(error_msg)
 
     # ── Save file ────────────────────────────────────────────────────────
     save_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
@@ -301,6 +350,11 @@ def upload():
 
     draft_id = create_report_draft(dataset_id, extracted)
     return redirect(url_for("view_analysis", draft_id=draft_id))
+
+
+@app.errorhandler(413)
+def file_too_large(e):
+    return _upload_error("File too large. Maximum upload size is 500 MB."), 413
 
 
 # ─────────────────────────────────────────────
