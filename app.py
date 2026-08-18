@@ -122,7 +122,7 @@ talisman = Talisman(
     x_content_type_options=True,
     frame_options='DENY',
     referrer_policy='strict-origin-when-cross-origin',
-    session_cookie_secure=True,     # SSL is active locally (see app.run() below)
+    session_cookie_secure=False,    # was True — no HTTPS locally (SSL disabled for corporate network compatibility)
     session_cookie_http_only=True,  # prevent JS cookie access
     session_cookie_samesite='Lax',
 )
@@ -982,6 +982,5 @@ if __name__ == '__main__':
         'FLASK_DEBUG', 'False'
     ).lower() == 'true'
     app.run(
-        debug=debug_mode,
-        ssl_context='adhoc'  # self-signed cert
+        debug=debug_mode
     )
