@@ -20,6 +20,7 @@ from flask import (
     send_file, send_from_directory, abort, jsonify, session,
 )
 from flask_wtf.csrf import CSRFProtect
+from flask_talisman import Talisman
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -76,6 +77,55 @@ app.secret_key = os.environ.get(
     secrets.token_hex(32)  # fallback if .env missing
 )
 csrf = CSRFProtect(app)
+
+# Content Security Policy — 'self' plus the two CDNs templates actually
+# load from: cdn.jsdelivr.net (Tabler icon webfont CSS + its font files)
+# and fonts.googleapis.com/fonts.gstatic.com (Google Fonts). cdn.jsdelivr.net
+# is included in style-src and font-src, not just script-src, because the
+# icon font's @font-face rules are served from the same jsdelivr host as
+# its stylesheet — without it here, every icon on every page would fail
+# to render under this policy.
+csp = {
+    'default-src': "'self'",
+    'script-src': [
+        "'self'",
+        "'unsafe-inline'",  # needed for inline JS
+        'cdn.jsdelivr.net',
+        'cdnjs.cloudflare.com',
+    ],
+    'style-src': [
+        "'self'",
+        "'unsafe-inline'",  # needed for inline styles
+        'fonts.googleapis.com',
+        'cdnjs.cloudflare.com',
+        'cdn.jsdelivr.net',
+    ],
+    'font-src': [
+        "'self'",
+        'fonts.gstatic.com',
+        'fonts.googleapis.com',
+        'cdnjs.cloudflare.com',
+        'cdn.jsdelivr.net',
+    ],
+    'img-src': [
+        "'self'",
+        'data:',  # needed for base64 images
+    ],
+    'connect-src': "'self'",
+}
+
+talisman = Talisman(
+    app,
+    force_https=False,        # False for local dev
+    strict_transport_security=False,
+    content_security_policy=csp,
+    x_content_type_options=True,
+    frame_options='DENY',
+    referrer_policy='strict-origin-when-cross-origin',
+    session_cookie_secure=True,     # SSL is active locally (see app.run() below)
+    session_cookie_http_only=True,  # prevent JS cookie access
+    session_cookie_samesite='Lax',
+)
 
 _MYT = timezone(timedelta(hours=8))
 
@@ -931,4 +981,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get(
         'FLASK_DEBUG', 'False'
     ).lower() == 'true'
-    app.run(debug=debug_mode)
+    app.run(
+        debug=debug_mode,
+        ssl_context='adhoc'  # self-signed cert
+    )
