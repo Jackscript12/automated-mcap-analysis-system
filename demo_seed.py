@@ -16,8 +16,12 @@ import os
 from datetime import datetime, timedelta
 
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
+)
 
 from database import (
     init_db,
@@ -362,23 +366,213 @@ def _build_extraction_data(rec, index):
     return extraction_data
 
 
-def _write_dummy_pdf(path, rec, extraction_data):
-    """A minimal real PDF so the Reports page's Download link works live."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+def _build_pdf(pdf_path, rec, extraction_data, summary_data, manual_dict):
+    """
+    Faithful port of app.py's _build_pdf() — same ReportLab styles, same
+    section order (Info Box -> Foxglove Analysis bullets -> ODD Event ->
+    Event Timeline table -> footer), same bullet-point field list.
+
+    This is a PORT, not an import of app._build_pdf, deliberately: app.py's
+    Render auto-seed path does `import demo_seed` partway through its own
+    module execution, BEFORE app.py defines _build_pdf. A top-level
+    `from app import _build_pdf` here would therefore raise ImportError
+    ("cannot import name '_build_pdf' from partially initialized module
+    'app'") the moment this module is imported on Render — confirmed with
+    an isolated reproduction of the same import ordering before writing
+    this function. Keeping an independent copy avoids that circular import
+    while still producing byte-for-byte the same report layout.
+    """
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(path, pagesize=A4)
-    story = [
-        Paragraph("MCAP Event Analysis Report (Demo Data)", styles["Title"]),
-        Spacer(1, 12),
-        Paragraph(f"File: {rec['filename']}", styles["Normal"]),
-        Paragraph(f"Technician: {rec['technician']}", styles["Normal"]),
-        Paragraph(f"Vehicle/Van: {rec['van']}", styles["Normal"]),
-        Paragraph(f"Event Date: {rec['date']} {rec['time']} MYT", styles["Normal"]),
-        Spacer(1, 12),
-        Paragraph(f"ODD Trigger: {extraction_data['odd_trigger']}", styles["Normal"]),
-        Paragraph(f"Max Braking: {extraction_data['max_braking']}", styles["Normal"]),
-        Paragraph(f"Braking Severity: {extraction_data['braking_severity']}", styles["Normal"]),
+
+    title_style = ParagraphStyle(
+        "ReportTitle", parent=styles["Heading1"],
+        fontSize=16, spaceAfter=4, textColor=colors.HexColor("#1a1a2e"),
+    )
+    subtitle_style = ParagraphStyle(
+        "ReportSubtitle", parent=styles["Normal"],
+        fontSize=11, spaceAfter=4, textColor=colors.HexColor("#444444"),
+    )
+    footer_style = ParagraphStyle(
+        "ReportFooter", parent=styles["Normal"],
+        fontSize=8, textColor=colors.grey,
+    )
+    b1_style = ParagraphStyle("Bullet1", parent=styles["Normal"], fontSize=10, leftIndent=0,  spaceAfter=3)
+    b2_style = ParagraphStyle("Bullet2", parent=styles["Normal"], fontSize=10, leftIndent=20, spaceAfter=3)
+    b3_style = ParagraphStyle("Bullet3", parent=styles["Normal"], fontSize=10, leftIndent=40, spaceAfter=3)
+
+    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+    doc = SimpleDocTemplate(pdf_path, pagesize=A4,
+                            leftMargin=1 * cm, rightMargin=1 * cm,
+                            topMargin=2 * cm, bottomMargin=2 * cm)
+    story = []
+
+    # ── SECTION 1: Header + Info Box ────────────────────────────────────
+    story.append(Paragraph("ADAS Level 3 Event Analysis Report", title_style))
+    story.append(Paragraph("EDAG Holding Sdn. Bhd. — Fleet Monitoring", subtitle_style))
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#1a1a2e")))
+    story.append(Spacer(1, 0.4 * cm))
+
+    meta_table = Table(
+        [
+            ["Report Generated", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+            ["MCAP File",        rec["filename"]],
+            ["Created By",       manual_dict.get("created_by_name") or "-"],
+            ["Event Date",       manual_dict.get("event_date") or "-"],
+            ["Event Timestamp",  manual_dict.get("event_timestamp") or "-"],
+            ["Vehicle/Van",      manual_dict.get("vehicle_van") or "-"],
+            ["Analysis Status",  "Completed"],
+        ],
+        colWidths=[5 * cm, 14 * cm],
+    )
+    meta_table.setStyle(TableStyle([
+        ("FONTSIZE",       (0, 0), (-1, -1), 9),
+        ("FONTNAME",       (0, 0), (0, -1),  "Helvetica-Bold"),
+        ("TEXTCOLOR",      (0, 0), (0, -1),  colors.HexColor("#16213e")),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
+        ("GRID",           (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
+        ("PADDING",        (0, 0), (-1, -1), 6),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 0.6 * cm))
+
+    # ── SECTION 2: Foxglove Analysis ────────────────────────────────────
+    def _b(text, level=1):
+        prefix = {1: "• ", 2: "○ ", 3: "■ "}[level]
+        style  = {1: b1_style, 2: b2_style, 3: b3_style}[level]
+        story.append(Paragraph(prefix + text, style))
+
+    _b("Foxglove Analysis incl. Screenshots")
+    _b("Summary:", 2)
+    _b(f"Based on the MCAP, observed there was a {summary_data.get('traffic_condition', 'N/A')}.", 3)
+    for key in ["summary_odd_pre_event", "summary_cause_takeover", "summary_driver_input"]:
+        val = summary_data.get(key, "")
+        if val:
+            _b(val, 3)
+    brake = summary_data.get("brake_pedal_input", "")
+    if brake:
+        _b(brake, 3)
+    val = summary_data.get("summary_max_braking", "")
+    if val:
+        _b(val, 3)
+    val = summary_data.get("summary_off_state_braking", "")
+    if val:
+        _b(val, 3)
+    haptic = summary_data.get("haptic_signal", "")
+    if haptic:
+        _b(haptic, 3)
+    for key in ["summary_scg", "summary_driver_takeover"]:
+        val = summary_data.get(key, "")
+        if val:
+            _b(val, 3)
+    no_abn = summary_data.get("summary_no_abnormalities", "")
+    if no_abn:
+        _b(no_abn, 3)
+    for extra in summary_data.get("extra_lines", []):
+        if extra:
+            _b(extra, 3)
+    conclusion = f"{summary_data.get('summary_conclusion', '')} {summary_data.get('braking_assessment', '')}.".strip()
+    if conclusion != ".":
+        _b(conclusion, 3)
+
+    odd_code  = extraction_data.get("event_odd_code", "N/A")
+    odd_name  = extraction_data.get("odd_event_name", "N/A")
+    not_in_sm = extraction_data.get("odd_code_not_in_state_machine", False)
+    _b(f"ODD Event: {odd_code} - {odd_name}", 2)
+    if not_in_sm:
+        _b(
+            f"Event triggered: {odd_code} - {odd_name} "
+            f"(StateAutonomousDriving__adSmTimeAndReasonToMrm"
+            f" / Not Available In Any State Machine)",
+            3,
+        )
+    else:
+        _b(f"Event triggered: {odd_code}/StateAutonomousDriving__adSmTimeAndReasonToMrm", 3)
+
+    story.append(Spacer(1, 0.6 * cm))
+
+    # ── SECTION 3: Event Timeline table (transposed — fields as rows) ──
+    event_phases = [
+        row for row in extraction_data.get("event_table", [])
+        if not row.get("is_extended", False)
     ]
+
+    if event_phases:
+        et_hdr_style  = ParagraphStyle(
+            "ETHdr", fontSize=7, alignment=1, leading=9,
+            fontName="Helvetica-Bold", textColor=colors.white,
+        )
+        et_lbl_style  = ParagraphStyle(
+            "ETLbl", fontSize=7, alignment=0, leading=9,
+            fontName="Helvetica-Bold", textColor=colors.HexColor("#1b3a6b"),
+        )
+        et_cell_style = ParagraphStyle("ETCell", fontSize=7, alignment=1, leading=9)
+
+        def _ph(text, style):
+            return Paragraph(str(text) if text is not None else "N/A", style)
+
+        def _odd_text(row):
+            code = row.get("odd_code")
+            name = row.get("odd_triggered", "N/A")
+            return f"{code} - {name}" if code is not None else (name or "N/A")
+
+        def _time_text(row):
+            dur = row.get("duration_seconds")
+            return f"{dur}s" if dur is not None else "N/A"
+
+        header_row = [_ph("", et_hdr_style)] + [
+            _ph(row.get("phase", "Pre-Event"), et_hdr_style)
+            for row in event_phases
+        ]
+        odd_row = [_ph("ODD Event", et_lbl_style)] + [
+            _ph(_odd_text(row), et_cell_style) for row in event_phases
+        ]
+        ad_row = [_ph("AD State", et_lbl_style)] + [
+            _ph(row.get("ad_state", "N/A"), et_cell_style) for row in event_phases
+        ]
+        hmi_row = [_ph("HMI State", et_lbl_style)] + [
+            _ph(f"{row.get('hmi_value', 'N/A')} / {row.get('hmi_state', 'N/A')}", et_cell_style)
+            for row in event_phases
+        ]
+        time_row = [_ph("Time(s)", et_lbl_style)] + [
+            _ph(_time_text(row), et_cell_style) for row in event_phases
+        ]
+
+        table_data = [header_row, odd_row, ad_row, hmi_row, time_row]
+
+        num_cols = 1 + len(event_phases)
+        col_w = 19 * cm / num_cols
+        phase_table = Table(
+            table_data,
+            colWidths=[col_w] * num_cols,
+            repeatRows=1,
+        )
+        phase_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0),  colors.HexColor("#1b3a6b")),
+            ("BACKGROUND", (0, 1), (0, -1),  colors.HexColor("#f0f4f9")),
+            ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#c0c8d8")),
+            ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN",      (1, 0), (-1, -1), "CENTER"),
+            ("ALIGN",      (0, 0), (0, -1),  "LEFT"),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING",   (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
+        ]))
+        story.append(phase_table)
+        story.append(Spacer(1, 0.6 * cm))
+
+    # No screenshots for demo data — demo records don't attach any.
+
+    # ── Footer ───────────────────────────────────────────────────────────
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+    story.append(Spacer(1, 0.2 * cm))
+    story.append(Paragraph(
+        "This report was generated automatically by the "
+        "Automated MCAP Analysis and Report Visualization System.",
+        footer_style,
+    ))
+
     doc.build(story)
 
 
@@ -467,14 +661,15 @@ def seed_record(index, rec):
         save_summary_data(draft_id, summary_data)
         update_draft_status(draft_id, "In Progress")
 
-    # ── Completed: generate a real (dummy-content) PDF + reports row ───
+    # ── Completed: generate the full-format PDF (same layout as the real
+    #    /analysis/<id>/generate route) + reports row ─────────────────────
     if rec["status"] == "completed":
         update_draft_status(draft_id, "Completed")
         date_compact = rec["date"].replace("-", "")
         time_compact = rec["time"].replace(":", "")
         pdf_filename = f"report_draft{draft_id}_{date_compact}_{time_compact}.pdf"
         pdf_path = os.path.join(REPORTS_FOLDER, pdf_filename)
-        _write_dummy_pdf(pdf_path, rec, extraction_data)
+        _build_pdf(pdf_path, rec, extraction_data, summary_data, form_data)
         generated_at = f"{rec['date']} {rec['time']}"
         save_report(draft_id, dataset_id, pdf_filename, pdf_path, generated_at=generated_at)
 
