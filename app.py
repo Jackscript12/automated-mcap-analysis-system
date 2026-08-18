@@ -4,7 +4,11 @@ Automated MCAP Analysis and Report Visualization System
 All 9 use cases from SRS implemented.
 """
 
+from dotenv import load_dotenv
 import os
+import secrets
+load_dotenv()
+
 import time
 import uuid
 import base64
@@ -66,7 +70,10 @@ from extraction import extract_mcap_data, validate_mcap
 # App setup
 # ─────────────────────────────────────────────
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "mcap-analysis-dev-secret-key")
+app.secret_key = os.environ.get(
+    'FLASK_SECRET_KEY',
+    secrets.token_hex(32)  # fallback if .env missing
+)
 
 _MYT = timezone(timedelta(hours=8))
 
@@ -860,5 +867,8 @@ def download_report(report_id):
     )
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    debug_mode = os.environ.get(
+        'FLASK_DEBUG', 'False'
+    ).lower() == 'true'
+    app.run(debug=debug_mode)
