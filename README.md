@@ -1,9 +1,28 @@
 # Automated MCAP Analysis System
 
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=flat-square&logo=flask&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square&logo=sqlite&logoColor=white)
+![License](https://img.shields.io/badge/License-Academic-blue?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Live-46E3B7?style=flat-square)
+
 A Flask-based web application that automates the analysis of MCAP recordings from autonomous-driving test vehicles operating at **Advanced Driver Assistance System (ADAS) Level 3** — a level of driving automation where the vehicle's software can drive on its own under certain conditions, but the human driver must still be ready to take back control when asked. It extracts event timelines, braking metrics, vehicle speed, and ODD (Operational Design Domain — a set of conditions under which the autonomous system is designed to operate) event codes directly from raw MCAP files, and produces structured, technician-reviewed PDF reports — replacing a manual, spreadsheet-and-visualization-tool-based workflow.
+
+---
+
+## 🚀 Live Demo
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://automated-mcap-analysis-system.onrender.com)
+
+> **Try it now →** [https://automated-mcap-analysis-system.onrender.com](https://automated-mcap-analysis-system.onrender.com)
+
+> ⚠️ **Note:** Hosted on Render free tier — the server may take **30–60 seconds to wake up** on first visit if inactive. Demo data is pre-loaded with 8 realistic analysis records.
+
+---
 
 ## Table of Contents
 
+- [Live Demo](#-live-demo)
 - [Introduction](#introduction)
 - [Problem Statement](#problem-statement)
 - [System Overview](#system-overview)
