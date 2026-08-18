@@ -432,7 +432,17 @@ def get_report(report_id):
     return dict(row) if row else None
 
 
+# SQLite has no parameter-binding syntax for identifiers (table/column
+# names) — only values can use "?" placeholders — so get_count()'s table
+# name is validated against this whitelist instead of being interpolated
+# unchecked. All current call sites already pass a hardcoded literal, but
+# this closes the gap if that ever changes.
+_COUNTABLE_TABLES = {"datasets", "report_drafts", "reports"}
+
+
 def get_count(table_name):
+    if table_name not in _COUNTABLE_TABLES:
+        raise ValueError(f"Invalid table name: {table_name!r}")
     conn = get_db()
     count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
     conn.close()

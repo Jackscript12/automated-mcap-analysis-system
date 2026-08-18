@@ -1,3 +1,4 @@
+bleach==6.4.0
 blinker==1.9.0
 cffi==2.1.1
 charset-normalizer==3.4.7
@@ -25,6 +26,7 @@ six==1.17.0
 SQLAlchemy==2.0.48
 typing_extensions==4.15.0
 tzdata==2025.3
+webencodings==0.6.1
 Werkzeug==3.1.8
 wtforms==3.2.2
 zstandard==0.25.0

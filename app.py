@@ -14,11 +14,14 @@ import uuid
 import base64
 import json
 import hashlib
+import re
+import bleach
 from datetime import datetime, timezone, timedelta
 from flask import (
     Flask, render_template, request, redirect, url_for,
     send_file, send_from_directory, abort, jsonify, session,
 )
+from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 from flask_talisman import Talisman
 
@@ -181,6 +184,41 @@ with app.app_context():
 # ─────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────
+def sanitize_text(value, max_length=500):
+    """
+    Sanitize plain text input — strip HTML tags,
+    remove dangerous characters, enforce length.
+    Used for form fields like technician name,
+    traffic condition, van number etc.
+    """
+    if not value:
+        return ''
+    # Strip all HTML tags
+    value = bleach.clean(value, tags=[], strip=True)
+    # Remove null bytes
+    value = value.replace('\x00', '')
+    # Strip leading/trailing whitespace
+    value = value.strip()
+    # Enforce max length
+    value = value[:max_length]
+    return value
+
+
+def sanitize_filename(filename):
+    """
+    Sanitize uploaded filename — keep only
+    safe characters, preserve extension.
+    """
+    if not filename:
+        return ''
+    name, ext = os.path.splitext(filename)
+    # Keep only alphanumeric, dash, underscore, dot
+    name = re.sub(r'[^\w\-]', '_', name)
+    # Limit filename length
+    name = name[:100]
+    return name + ext.lower()
+
+
 def validate_mcap_upload(file):
     """
     Validate uploaded file before processing.
@@ -326,7 +364,7 @@ def upload():
 
     # ── Validate form inputs ──────────────────────────────────────────────
     file            = request.files.get("mcapFile")
-    created_by_name = request.form.get("created_by_name", "").strip()
+    created_by_name = sanitize_text(request.form.get("created_by_name", "").strip(), max_length=100)
 
     if not created_by_name:
         return _upload_error("Please select a technician before uploading.")
@@ -338,7 +376,8 @@ def upload():
         return _upload_error(error_msg)
 
     # ── Save file ────────────────────────────────────────────────────────
-    save_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+    safe_filename = sanitize_filename(secure_filename(file.filename))
+    save_path     = os.path.join(app.config["UPLOAD_FOLDER"], safe_filename)
     file.save(save_path)
 
     # ── Duplicate detection ───────────────────────────────────────────────
@@ -354,7 +393,7 @@ def upload():
                                     original_filename=existing["original_filename"]))
 
     # ── Create dataset record ─────────────────────────────────────────────
-    dataset_id = create_dataset(file.filename, save_path, created_by_name, file_hash)
+    dataset_id = create_dataset(safe_filename, save_path, created_by_name, file_hash)
 
     # ── UCD002 — Validate ─────────────────────────────────────────────────
     try:
@@ -466,9 +505,9 @@ def complete_form(draft_id):
         "event_classification", "vehicle_van", "event_date", "event_timestamp",
         "technician_remarks", "created_by_name",
     ]
-    form_data = {f: request.form.get(f, "") for f in form_fields}
+    form_data = {f: sanitize_text(request.form.get(f, "")) for f in form_fields}
 
-    save_type = request.form.get("save_type", "draft")
+    save_type = sanitize_text(request.form.get("save_type", "draft"), max_length=20)
     save_manual_inputs(draft_id, form_data)
     log_action(draft["dataset_id"], "FORM_SAVED", f"Draft ID: {draft_id}")
 
@@ -484,8 +523,11 @@ def complete_form(draft_id):
 @csrf.exempt
 @app.route("/analysis/<int:draft_id>/screenshot", methods=["POST"])
 def upload_screenshot(draft_id):
+    # NOTE: 'data' is a base64 image data URI, not free text — it must NOT
+    # be run through sanitize_text() (HTML-stripping/length-truncation would
+    # corrupt the image). 'title' is a genuine user-typed caption.
     data  = request.json.get("data", "")
-    title = request.json.get("title", "")
+    title = sanitize_text(request.json.get("title", ""), max_length=200)
     if not data:
         return jsonify({"error": "No image data"}), 400
     try:
@@ -521,12 +563,15 @@ def save_summary(draft_id):
         "summary_driver_takeover", "summary_no_abnormalities",
         "summary_conclusion", "braking_assessment",
     ]
-    summary_data = {f: request.form.get(f, "") for f in summary_fields}
+    # Summary fields hold multi-sentence, technician-edited report prose
+    # (auto-generated then reviewed/edited), so they get a larger max_length
+    # than the 500-char default to avoid truncating legitimate content.
+    summary_data = {f: sanitize_text(request.form.get(f, ""), max_length=2000) for f in summary_fields}
 
     extra_lines = []
     for key in request.form:
         if key.startswith("extra_line_"):
-            val = request.form.get(key, "").strip()
+            val = sanitize_text(request.form.get(key, "").strip(), max_length=2000)
             if val:
                 extra_lines.append(val)
     summary_data["extra_lines"] = extra_lines
@@ -534,8 +579,12 @@ def save_summary(draft_id):
     screenshots = []
     i = 0
     while f"screenshot_filename_{i}" in request.form:
-        filename = request.form.get(f"screenshot_filename_{i}", "")
-        title    = request.form.get(f"screenshot_title_display_{i}", "")
+        # filename is a server-generated name (see upload_screenshot) that
+        # round-trips through a hidden form field, then gets joined into a
+        # filesystem path when the PDF is built — sanitize as a filename,
+        # not free text, to prevent path traversal via a tampered field.
+        filename = sanitize_filename(request.form.get(f"screenshot_filename_{i}", ""))
+        title    = sanitize_text(request.form.get(f"screenshot_title_display_{i}", ""), max_length=200)
         if filename:
             screenshots.append({"title": title, "filename": filename})
         i += 1
@@ -564,7 +613,7 @@ def update_status(draft_id):
     if not draft:
         abort(404)
 
-    new_status = request.form.get("status", "")
+    new_status = sanitize_text(request.form.get("status", ""), max_length=20)
     if new_status in ANALYSIS_STATUS:
         update_draft_status(draft_id, new_status)
 
@@ -856,7 +905,7 @@ def _build_pdf(pdf_path, draft, dataset, ext_data, summary):
 @app.route("/technicians/add", methods=["POST"])
 def add_technician_route():
     data = request.json or {}
-    name = (data.get("name") or "").strip()
+    name = sanitize_text((data.get("name") or "").strip(), max_length=100)
     if not name:
         return jsonify({"success": False, "error": "Name cannot be empty."}), 400
     if add_technician(name):
@@ -868,7 +917,7 @@ def add_technician_route():
 @app.route("/technicians/delete", methods=["POST"])
 def delete_technician_route():
     data = request.get_json() or {}
-    name = (data.get("name") or "").strip()
+    name = sanitize_text((data.get("name") or "").strip(), max_length=100)
     if not name:
         return jsonify({"success": False, "error": "Name cannot be empty."}), 400
     try:
