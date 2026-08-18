@@ -24,6 +24,8 @@ from flask import (
 from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -80,6 +82,13 @@ app.secret_key = os.environ.get(
     secrets.token_hex(32)  # fallback if .env missing
 )
 csrf = CSRFProtect(app)
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 
 # Content Security Policy — 'self' plus the two CDNs templates actually
 # load from: cdn.jsdelivr.net (Tabler icon webfont CSS + its font files)
@@ -319,6 +328,7 @@ def _upload_error(message):
 # UCD000 — Home
 # ─────────────────────────────────────────────
 @app.route("/")
+@limiter.exempt
 def home():
     uploaded_files    = get_count("datasets")
     analyzed_events   = get_count("report_drafts")
@@ -358,6 +368,7 @@ def analysis_index():
 # UCD003 — Extract event data  (automatic)
 # ─────────────────────────────────────────────
 @app.route("/upload", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def upload():
     if request.method == "GET":
         return render_template("upload.html", message=None, technicians=get_all_technicians())
@@ -446,6 +457,25 @@ def file_too_large(e):
     return _upload_error("File too large. Maximum upload size is 500 MB."), 413
 
 
+@app.errorhandler(429)
+def rate_limit_exceeded(e):
+    """
+    Handle rate limit exceeded errors. Flask only supports one handler per
+    status code, so this branches by request path instead of registering a
+    second @app.errorhandler(429): /upload returns HTML via the existing
+    _upload_error() pattern (matching how every other /upload failure is
+    reported), everything else — the AJAX/JSON routes — gets a JSON body.
+    """
+    if request.path == "/upload":
+        return _upload_error("Too many upload attempts. Please wait a moment before trying again."), 429
+    return jsonify({
+        'error': 'Too many requests. '
+                 'Please wait a moment '
+                 'before trying again.',
+        'retry_after': str(e.description)
+    }), 429
+
+
 # ─────────────────────────────────────────────
 # UCD004 — View event analysis
 # ─────────────────────────────────────────────
@@ -520,8 +550,9 @@ def complete_form(draft_id):
 # ─────────────────────────────────────────────
 # Screenshot upload (AJAX)
 # ─────────────────────────────────────────────
-@csrf.exempt
 @app.route("/analysis/<int:draft_id>/screenshot", methods=["POST"])
+@limiter.limit("30 per minute")
+@csrf.exempt
 def upload_screenshot(draft_id):
     # NOTE: 'data' is a base64 image data URI, not free text — it must NOT
     # be run through sanitize_text() (HTML-stripping/length-truncation would
@@ -624,6 +655,7 @@ def update_status(draft_id):
 # UCD007 — Generate event report (PDF)
 # ─────────────────────────────────────────────
 @app.route("/analysis/<int:draft_id>/generate", methods=["POST"])
+@limiter.limit("10 per minute")
 def generate_report(draft_id):
     draft = get_report_draft(draft_id)
     if not draft:
@@ -901,8 +933,9 @@ def _build_pdf(pdf_path, draft, dataset, ext_data, summary):
 # ─────────────────────────────────────────────
 # Technician management
 # ─────────────────────────────────────────────
-@csrf.exempt
 @app.route("/technicians/add", methods=["POST"])
+@limiter.limit("20 per minute")
+@csrf.exempt
 def add_technician_route():
     data = request.json or {}
     name = sanitize_text((data.get("name") or "").strip(), max_length=100)
@@ -939,8 +972,9 @@ def delete_analysis(draft_id):
 # ─────────────────────────────────────────────
 # Re-extract from original MCAP file
 # ─────────────────────────────────────────────
-@csrf.exempt
 @app.route("/analysis/<int:draft_id>/reextract", methods=["POST"])
+@limiter.limit("20 per minute")
+@csrf.exempt
 def reextract(draft_id):
     draft = get_report_draft(draft_id)
     if not draft:
@@ -987,6 +1021,7 @@ def reextract(draft_id):
 # UCD008 — View reports list
 # ─────────────────────────────────────────────
 @app.route("/reports")
+@limiter.exempt
 def view_reports():
     reports = get_all_drafts_with_details()
     for r in reports:
@@ -1002,6 +1037,7 @@ def view_reports():
 # Audit Log viewer
 # ─────────────────────────────────────────────
 @app.route("/audit-logs")
+@limiter.exempt
 def audit_logs_page():
     logs = get_audit_logs(limit=200)
     for log in logs:
