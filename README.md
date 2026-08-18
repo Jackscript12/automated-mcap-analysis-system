@@ -129,6 +129,15 @@ http://localhost:5000
 
 The application will initialize its SQLite database on first launch and serve the Home page.
 
+### Demo Data (Optional)
+To populate the system with realistic demo records for demonstration purposes, run the seed script after starting the app:
+
+```bash
+python demo_seed.py
+```
+
+This creates 8 complete analysis records across different event types, braking categories and analysis statuses — no real MCAP files required. Safe to run multiple times (clears previous demo data on each run).
+
 ## How to Use
 
 1. **Upload an MCAP file** — go to **Upload MCAP**, select your technician name (or add a new one), drag-and-drop or browse for a `.mcap` file, and click **Upload & Process**. The system validates and extracts the file automatically.
