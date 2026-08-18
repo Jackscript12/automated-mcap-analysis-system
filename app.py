@@ -166,9 +166,16 @@ def to_myt(dt_str):
 def to_myt_filter(value):
     return to_myt(value)
 
-UPLOAD_FOLDER      = "uploads"
-REPORTS_FOLDER     = "reports"
-SCREENSHOTS_FOLDER = os.path.join(os.path.dirname(__file__), "screenshots")
+IS_RENDER = os.environ.get('RENDER', False)
+
+# Base directory — absolute regardless of the working directory the
+# process was launched from (gunicorn on Render may not start from this
+# file's own directory, unlike a local `python app.py`).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER      = os.path.join(BASE_DIR, 'uploads')
+REPORTS_FOLDER     = os.path.join(BASE_DIR, 'reports')
+SCREENSHOTS_FOLDER = os.path.join(BASE_DIR, 'screenshots')
 
 # File upload security constants
 ALLOWED_EXTENSIONS  = {".mcap"}
@@ -188,6 +195,19 @@ app.jinja_env.globals["is_draft_complete"] = is_draft_complete
 
 with app.app_context():
     init_db()
+
+# Auto-seed demo data on Render deployment. Runs at module import time
+# (not inside `if __name__ == "__main__":`) so it still fires when
+# gunicorn imports this module as `app:app` — gunicorn never executes
+# the __main__ guard, so seeding logic placed there would silently never
+# run in production.
+if IS_RENDER:
+    with app.app_context():
+        try:
+            import demo_seed
+            demo_seed.seed_if_empty()
+        except Exception as e:
+            print(f"Demo seed skipped: {e}")
 
 
 # ─────────────────────────────────────────────

@@ -5,11 +5,11 @@ presentation. Safe to run multiple times — existing demo records (matched
 by original_filename LIKE 'event_2026%') are fully removed via
 database.delete_draft() before the new set is inserted.
 
-This script is a demo utility only — it is intentionally excluded from
-version control (see .gitignore) and is never imported by app.py.
-
-Run:
+Run directly:
     python demo_seed.py
+
+app.py also imports seed_if_empty() to auto-seed a fresh Render deployment
+on startup (only when RENDER=true and the datasets table is empty).
 """
 
 import os
@@ -479,6 +479,20 @@ def seed_record(index, rec):
         save_report(draft_id, dataset_id, pdf_filename, pdf_path, generated_at=generated_at)
 
     return dataset_id, draft_id
+
+
+def seed_if_empty():
+    """Only seed if the database has no dataset records yet — used by
+    app.py's Render auto-seed so a redeploy/restart never re-seeds (or
+    wipes technician-entered data) on top of an already-used deployment."""
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) FROM datasets").fetchone()[0]
+    conn.close()
+    if count == 0:
+        print("Empty database -- running demo seed...")
+        main()
+    else:
+        print(f"Database has {count} record(s) -- skipping seed.")
 
 
 def main():

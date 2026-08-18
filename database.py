@@ -8,7 +8,10 @@ import os
 import sqlite3
 import json
 
-DATABASE_PATH = "mcap_analysis.db"
+# Absolute path — safe regardless of the working directory the process
+# was launched from (e.g. gunicorn on Render).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE_PATH = os.path.join(BASE_DIR, 'mcap_analysis.db')
 
 EVENT_CLASSIFICATION  = ["Below -4", "-4 to -7", "-7 to -10"]
 SAFETY_FUNCTION_STATUS = ["Active", "Inactive", "N/A"]
